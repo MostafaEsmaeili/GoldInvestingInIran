@@ -1,0 +1,5 @@
+flask>=3.0.0
+requests>=2.31.0
+apscheduler>=3.10.4
+jdatetime>=4.1.1
+python-dateutil>=2.9.0

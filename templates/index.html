@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سیستم معاملاتی طلا</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #21262d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --gold: #f0b429;
+    --gold-dim: #7d5a00;
+    --green: #00e676;
+    --red: #ff1744;
+    --orange: #ff6d00;
+    --yellow: #ffd740;
+    --accent: #58a6ff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  header h1 { font-size: 18px; color: var(--gold); font-weight: 700; letter-spacing: .5px; }
+  header h1 span { color: var(--muted); font-size: 13px; font-weight: 400; margin-right: 10px; }
+  #status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted); display: inline-block; margin-left: 6px;
+    transition: background .4s;
+  }
+  #status-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  #last-updated { font-size: 11px; color: var(--muted); }
+
+  /* ── Layout ── */
+  .page { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+
+  /* ── KPI row ── */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 3px; height: 100%;
+    background: var(--gold);
+    border-radius: 0 10px 10px 0;
+  }
+  .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+  .kpi-value { font-size: 22px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .kpi-err { font-size: 13px; color: var(--red); }
+
+  /* ── Main analysis row ── */
+  .analysis-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .card-title {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+  }
+
+  /* ── Deviation gauge ── */
+  #gauge-wrap { text-align: center; }
+  #gauge-svg { width: 100%; max-width: 320px; }
+  #delta-label {
+    font-size: 32px;
+    font-weight: 800;
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+    transition: color .4s;
+  }
+  #delta-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Signal block ── */
+  #signal-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+  #signal-badge {
+    font-size: 28px;
+    font-weight: 800;
+    padding: 14px 32px;
+    border-radius: 10px;
+    border: 2px solid currentColor;
+    letter-spacing: 1px;
+    text-align: center;
+    transition: color .4s, border-color .4s, background .4s;
+    background: rgba(255,255,255,.04);
+    margin-bottom: 14px;
+  }
+  #signal-desc {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--muted);
+    text-align: center;
+    max-width: 340px;
+  }
+  #rr-display {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  #rr-display strong { color: var(--text); font-size: 18px; }
+
+  /* ── Scenarios ── */
+  .scenarios-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .scenario {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+  }
+  .scenario-name { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .scenario-targets { font-size: 12px; line-height: 1.8; }
+  .scenario-targets span { color: var(--gold); font-weight: 600; }
+  .scenario-gain { font-size: 13px; font-weight: 700; margin-top: 8px; }
+
+  /* ── Portfolio row ── */
+  .portfolio-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  /* ── Trades table ── */
+  .table-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    text-align: right;
+    padding: 10px 14px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr:hover { background: rgba(255,255,255,.03); }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-hold { background: #ffd74020; color: var(--yellow); }
+  .badge-sold { background: #ff174420; color: var(--red); }
+  .badge-partial { background: #ff6d0020; color: var(--orange); }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 18px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    transition: opacity .2s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn-gold { background: var(--gold); color: #000; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 6px; }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    width: 420px;
+    max-width: 95vw;
+  }
+  .modal h2 { font-size: 18px; color: var(--gold); margin-bottom: 20px; }
+  .form-row { margin-bottom: 14px; }
+  .form-row label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .form-row input, .form-row textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .form-row input:focus, .form-row textarea:focus { border-color: var(--gold); }
+  .form-total {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 10px 14px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--gold);
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+  #err-msg { color: var(--red); font-size: 13px; margin-top: 8px; text-align: center; }
+
+  /* Separator */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .section-header h2 { font-size: 14px; color: var(--muted); font-weight: 600; }
+
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .placeholder { color: var(--muted); font-size: 13px; text-align: center; padding: 24px; }
+
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .analysis-row { grid-template-columns: 1fr; }
+    .portfolio-row { grid-template-columns: repeat(2, 1fr); }
+    .scenarios-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🥇 سیستم معاملاتی طلا <span>Iran Gold Trading System</span></h1>
+  </div>
+  <div style="text-align:left; display:flex; align-items:center; gap:14px;">
+    <span id="last-updated" style="font-size:11px; color:var(--muted);">در حال بارگذاری...</span>
+    <span id="status-dot"></span>
+    <a href="/settings" style="display:inline-flex;align-items:center;gap:5px;color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:7px;border:1px solid var(--border);transition:color .2s,border-color .2s;" onmouseover="this.style.color='var(--gold)';this.style.borderColor='#7d5a00'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">⚙️ تنظیمات</a>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- KPI Row -->
+  <div class="kpi-row" style="grid-template-columns: repeat(3,1fr) repeat(3,1fr); grid-template-rows: auto auto;">
+
+    <!-- Row 1: market data -->
+    <div class="kpi">
+      <div class="kpi-label">قیمت طلا جهانی</div>
+      <div class="kpi-value" id="kpi-gold-usd">—</div>
+      <div class="kpi-sub">USD / Troy Oz</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">دلار بازار آزاد</div>
+      <div class="kpi-value" id="kpi-usd-toman">—</div>
+      <div class="kpi-sub" id="kpi-usd-dev">تومان</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">طلای ۱۸ عیار (بازار)</div>
+      <div class="kpi-value" id="kpi-market-18k">—</div>
+      <div class="kpi-sub">تومان / گرم — bonbast.com</div>
+    </div>
+
+    <!-- Row 2: model/baseline -->
+    <div class="kpi" style="--accent-color:#58a6ff;">
+      <div class="kpi-label" style="color:var(--accent)">دلار پایه مدل</div>
+      <div class="kpi-value" id="kpi-base-dollar" style="color:var(--accent)">—</div>
+      <div class="kpi-sub" id="kpi-base-month">ماه شمسی جاری</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label" style="color:var(--accent)">ارزش ذاتی ۱۸ عیار</div>
+      <div class="kpi-value" id="kpi-iv-18k" style="color:var(--accent)">—</div>
+      <div class="kpi-sub">تومان / گرم (دلار پایه)</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">انحراف طلا از ارزش ذاتی</div>
+      <div class="kpi-value" id="kpi-gold-dev">—</div>
+      <div class="kpi-sub">بازار vs ارزش ذاتی</div>
+    </div>
+
+  </div>
+
+  <!-- Analysis Row -->
+  <div class="analysis-row">
+
+    <!-- Gauge -->
+    <div class="card">
+      <div class="card-title">انحراف از ارزش ذاتی (Deviation Delta)</div>
+      <div id="gauge-wrap">
+        <svg id="gauge-svg" viewBox="0 0 300 160" xmlns="http://www.w3.org/2000/svg">
+          <!-- Background arc -->
+          <path d="M 20 150 A 130 130 0 0 1 280 150" fill="none" stroke="#21262d" stroke-width="18" stroke-linecap="round"/>
+          <!-- Color zones -->
+          <path d="M 20 150 A 130 130 0 0 1 75 42" fill="none" stroke="#00e67640" stroke-width="18" stroke-linecap="butt"/>
+          <path d="M 75 42 A 130 130 0 0 1 150 20" fill="none" stroke="#69f0ae40" stroke-width="18" stroke-linecap="butt"/>
+          <path d="M 150 20 A 130 130 0 0 1 195 35" fill="none" stroke="#ffd74040" stroke-width="18" stroke-linecap="butt"/>
+          <path d="M 195 35 A 130 130 0 0 1 245 75" fill="none" stroke="#ff6d0040" stroke-width="18" stroke-linecap="butt"/>
+          <path d="M 245 75 A 130 130 0 0 1 280 150" fill="none" stroke="#ff174440" stroke-width="18" stroke-linecap="butt"/>
+          <!-- Needle -->
+          <line id="gauge-needle" x1="150" y1="150" x2="150" y2="35" stroke="#f0b429" stroke-width="3" stroke-linecap="round"
+                transform="rotate(0, 150, 150)" style="transition: transform .8s cubic-bezier(.4,0,.2,1)"/>
+          <circle cx="150" cy="150" r="7" fill="#f0b429"/>
+          <!-- Labels -->
+          <text x="14" y="168" fill="#8b949e" font-size="11" text-anchor="middle">-30%</text>
+          <text x="150" y="14" fill="#8b949e" font-size="11" text-anchor="middle">0%</text>
+          <text x="286" y="168" fill="#8b949e" font-size="11" text-anchor="middle">+30%</text>
+        </svg>
+        <div id="delta-label">—</div>
+        <div id="delta-hint">انحراف قیمت بازار از ارزش ذاتی (دلار پایه)</div>
+      </div>
+
+      <!-- Baseline dollar formula box -->
+      <div id="baseline-box" style="
+        margin-top: 18px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 16px;
+        font-size: 13px;
+        line-height: 2;
+      ">
+        <div style="color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">
+          محاسبه دلار پایه مدل — ماه شمسی
+        </div>
+        <div id="baseline-formula" style="color:var(--accent); font-family: monospace; font-size:14px;">—</div>
+        <div style="display:flex; gap:24px; margin-top:8px; flex-wrap:wrap;">
+          <span style="color:var(--muted)">دلار بازار:
+            <strong id="bf-market" style="color:var(--text)">—</strong>
+          </span>
+          <span style="color:var(--muted)">اختلاف از پایه:
+            <strong id="bf-diff" style="color:var(--text)">—</strong>
+          </span>
+        </div>
+      </div>
+
+      <!-- Gold IV formula box -->
+      <div style="
+        margin-top: 10px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 16px;
+        font-size: 13px;
+        line-height: 2;
+      ">
+        <div style="color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">
+          محاسبه ارزش ذاتی طلای ۱۸ عیار
+        </div>
+        <div id="gold-formula" style="color:var(--gold); font-family: monospace; font-size:14px;">—</div>
+        <div style="display:flex; gap:24px; margin-top:8px; flex-wrap:wrap;">
+          <span style="color:var(--muted)">قیمت بازار ۱۸ عیار:
+            <strong id="gf-market" style="color:var(--text)">—</strong>
+          </span>
+          <span style="color:var(--muted)">اختلاف از ارزش ذاتی:
+            <strong id="gf-diff" style="color:var(--text)">—</strong>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Signal -->
+    <div class="card">
+      <div class="card-title">سیگنال استراتژیک</div>
+      <div id="signal-wrap">
+        <div id="signal-badge" style="color: var(--muted); border-color: var(--muted);">
+          <span class="spinner"></span>
+        </div>
+        <div id="signal-desc" style="color:var(--muted);">در حال دریافت داده‌های بازار...</div>
+        <div id="rr-display" style="display:none;">
+          نسبت ریسک به پاداش (R/R): <strong id="rr-value">—</strong>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Scenarios Row -->
+  <div class="card" style="margin-bottom: 18px;">
+    <div class="card-title">سناریوهای قیمتی — <span id="scenarios-title-sub" style="color:var(--gold)">در حال بارگذاری...</span></div>
+    <div class="scenarios-grid" id="scenarios-grid">
+      <div class="placeholder"><span class="spinner"></span></div>
+    </div>
+  </div>
+
+  <!-- Portfolio Row -->
+  <div class="section-header">
+    <h2>پورتفوی شما</h2>
+    <button class="btn btn-gold" onclick="openModal()">+ ثبت خرید جدید</button>
+  </div>
+  <div class="portfolio-row" style="margin-bottom: 18px;">
+    <div class="kpi" style="border-left: none;">
+      <div class="kpi-label">وزن کل (نگهداری)</div>
+      <div class="kpi-value" id="port-grams">—</div>
+      <div class="kpi-sub">گرم</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">بهای تمام شده</div>
+      <div class="kpi-value" id="port-cost">—</div>
+      <div class="kpi-sub">تومان</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">سود / زیان</div>
+      <div class="kpi-value" id="port-pnl">—</div>
+      <div class="kpi-sub" id="port-pnl-pct">—</div>
+    </div>
+  </div>
+
+  <!-- Trades Table -->
+  <div class="card">
+    <div class="card-title">تاریخچه معاملات</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>تاریخ</th>
+            <th>وزن (گرم)</th>
+            <th>قیمت/گرم (تومان)</th>
+            <th>کل (تومان)</th>
+            <th>دلار پایه هنگام خرید</th>
+            <th>دلار بازار هنگام خرید</th>
+            <th>ارزش ذاتی هنگام خرید</th>
+            <th>انحراف هنگام خرید</th>
+            <th>سیگنال</th>
+            <th>وضعیت</th>
+            <th>یادداشت</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="trades-tbody">
+          <tr><td colspan="10" class="placeholder">هنوز معامله‌ای ثبت نشده</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Record Purchase Modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2>ثبت خرید جدید طلا</h2>
+    <div class="form-row">
+      <label>وزن (گرم)</label>
+      <input type="number" id="f-weight" step="0.01" min="0.01" placeholder="مثال: 100">
+    </div>
+    <div class="form-row">
+      <label>قیمت پرداختی هر گرم (تومان)</label>
+      <input type="number" id="f-price" step="1000" min="1" placeholder="مثال: 9500000">
+    </div>
+    <div class="form-row">
+      <label>یادداشت (اختیاری)</label>
+      <textarea id="f-notes" rows="2" placeholder="توضیحات اضافی..."></textarea>
+    </div>
+    <div class="form-total" id="f-total">جمع کل: —</div>
+    <div id="err-msg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">انصراف</button>
+      <button class="btn btn-gold" onclick="submitTrade()">ثبت خرید</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let _market = null;
+
+  // ── Formatting helpers ─────────────────────────────────────────────────────
+  const fmt = (n, decimals = 0) =>
+    n == null ? '—' : Number(n).toLocaleString('fa-IR', {maximumFractionDigits: decimals});
+
+  const fmtUSD = n => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', {maximumFractionDigits: 0});
+
+  function toPersianDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('fa-IR') + ' ' + d.toLocaleTimeString('fa-IR', {hour:'2-digit', minute:'2-digit'});
+  }
+
+  // ── Gauge needle ────────────────────────────────────────────────────────────
+  function setNeedle(delta) {
+    // -30% → -90deg (left), 0% → 0deg (up), +30% → +90deg (right)
+    const clamped = Math.max(-30, Math.min(30, delta));
+    const deg = clamped * 3; // 3 degrees per percent
+    document.getElementById('gauge-needle').setAttribute(
+      'transform', `rotate(${deg}, 150, 150)`
+    );
+  }
+
+  // ── Signal color ───────────────────────────────────────────────────────────
+  function applySignal(data) {
+    const badge = document.getElementById('signal-badge');
+    const desc  = document.getElementById('signal-desc');
+    const rrDiv = document.getElementById('rr-display');
+    const rrVal = document.getElementById('rr-value');
+
+    badge.textContent = data.signal_fa;
+    badge.style.color = data.signal_color;
+    badge.style.borderColor = data.signal_color;
+    badge.style.background = data.signal_color + '15';
+
+    desc.textContent = data.signal_description;
+    desc.style.color = 'var(--text)';
+
+    rrDiv.style.display = 'block';
+    const rr = data.rr;
+    rrVal.textContent = (rr > 0 ? '+' : '') + Number(rr).toFixed(1);
+    rrVal.style.color = rr >= 3 ? 'var(--green)' : rr >= 0 ? 'var(--yellow)' : 'var(--red)';
+  }
+
+  // ── Shamsi month label from ISO date string ────────────────────────────────
+  function shamsiMonthLabel(isoDate) {
+    if (!isoDate) return '—';
+    // Parse as local date (not UTC) to avoid day-boundary shift
+    const parts = isoDate.split('-');
+    const d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+    // fa-IR locale uses the Solar Hijri (Shamsi) calendar automatically
+    return d.toLocaleDateString('fa-IR', { month: 'long', year: 'numeric' });
+  }
+
+  // ── Scenarios ──────────────────────────────────────────────────────────────
+  function renderScenarios(scenarios) {
+    const grid = document.getElementById('scenarios-grid');
+    grid.innerHTML = scenarios.map(s => {
+      const rows = [
+        { key: '3m',  label: '۳ ماه شمسی'  },
+        { key: '6m',  label: '۶ ماه شمسی'  },
+        { key: '12m', label: '۱۲ ماه شمسی' },
+      ].map(r => {
+        const raw   = s.targets[r.key];
+        // targets[key] is always {price, date, dollar} — guard against stale cache
+        const t      = raw && typeof raw === 'object' ? raw : { price: raw, date: null, dollar: null };
+        const price  = t.price != null && !isNaN(t.price) ? fmt(t.price) : '—';
+        const shamsi = shamsiMonthLabel(t.date);
+        const dollarHint = t.dollar ? `<span style="font-size:10px;color:var(--muted)"> (${fmt(t.dollar)})</span>` : '';
+        return `<tr>
+          <td style="color:var(--muted);font-size:11px;padding:4px 0;white-space:nowrap">${r.label}</td>
+          <td style="color:var(--gold);font-weight:700;padding:4px 8px">${price}${dollarHint}</td>
+          <td style="color:var(--muted);font-size:11px;padding:4px 0;white-space:nowrap">${shamsi}</td>
+        </tr>`;
+      }).join('');
+
+      return `
+      <div class="scenario">
+        <div class="scenario-name">${s.label_fa}</div>
+        <div class="scenario-name" style="font-size:10px;margin-bottom:8px">
+          رشد دلار: <span style="color:var(--text)">${fmt(s.monthly_growth_toman)}</span> ت/ماه شمسی
+        </div>
+        <table style="width:100%;border-collapse:collapse">${rows}</table>
+        <div class="scenario-gain" style="color:${s.gain_12m_pct >= 0 ? 'var(--green)' : 'var(--red)'}">
+          ${s.gain_12m_pct >= 0 ? '+' : ''}${s.gain_12m_pct}٪ در ۱۲ ماه شمسی
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Trades table ───────────────────────────────────────────────────────────
+  async function loadTrades() {
+    const res = await fetch('/api/trades');
+    const trades = await res.json();
+    const tbody = document.getElementById('trades-tbody');
+
+    if (!trades.length) {
+      tbody.innerHTML = '<tr><td colspan="13" class="placeholder">هنوز معامله‌ای ثبت نشده</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = trades.map(t => {
+      const devStr = t.deviation_pct_at_time != null
+        ? (t.deviation_pct_at_time > 0 ? '+' : '') + t.deviation_pct_at_time.toFixed(1) + '%'
+        : '—';
+      const devColor = t.deviation_pct_at_time == null ? 'var(--muted)'
+        : t.deviation_pct_at_time < -5 ? 'var(--green)'
+        : t.deviation_pct_at_time < 5 ? 'var(--yellow)'
+        : 'var(--red)';
+
+      // Dollar premium at time of purchase (market vs baseline)
+      const hasDollarData = t.baseline_dollar_at_time && t.usd_toman_at_time;
+      const dollarDiff = hasDollarData
+        ? t.usd_toman_at_time - t.baseline_dollar_at_time
+        : null;
+      const dollarDiffStr = dollarDiff != null
+        ? (dollarDiff >= 0 ? '+' : '') + fmt(Math.round(dollarDiff))
+        : '—';
+      const dollarDiffColor = dollarDiff == null ? 'var(--muted)'
+        : Math.abs(dollarDiff) < 2000 ? 'var(--muted)'
+        : dollarDiff > 0 ? 'var(--orange)' : 'var(--green)';
+
+      const statusClass = t.status === 'sold' ? 'badge-sold' : t.status === 'partial' ? 'badge-partial' : 'badge-hold';
+      const statusText  = t.status === 'sold' ? 'فروخته شد' : t.status === 'partial' ? 'جزئی' : 'نگهداری';
+
+      return `<tr>
+        <td style="color:var(--muted)">${t.id}</td>
+        <td style="color:var(--muted)">${toPersianDate(t.timestamp)}</td>
+        <td><strong>${fmt(t.weight_grams, 2)}</strong></td>
+        <td>${fmt(t.price_per_gram_toman)}</td>
+        <td style="color:var(--gold)">${fmt(t.total_cost_toman)}</td>
+        <td style="color:var(--accent)">${t.baseline_dollar_at_time ? fmt(t.baseline_dollar_at_time) : '—'}</td>
+        <td>
+          ${t.usd_toman_at_time ? fmt(t.usd_toman_at_time) : '—'}
+          ${dollarDiff != null ? `<span style="font-size:11px;color:${dollarDiffColor}"> (${dollarDiffStr})</span>` : ''}
+        </td>
+        <td>${t.intrinsic_value_at_time ? fmt(t.intrinsic_value_at_time) : '—'}</td>
+        <td style="color:${devColor}">${devStr}</td>
+        <td>${t.signal_at_time ? `<span class="badge" style="background:${signalBg(t.signal_at_time)};color:${signalColor(t.signal_at_time)}">${signalFa(t.signal_at_time)}</span>` : '—'}</td>
+        <td><span class="badge ${statusClass}">${statusText}</span></td>
+        <td style="color:var(--muted); max-width:140px; overflow:hidden; text-overflow:ellipsis">${t.notes || '—'}</td>
+        <td>
+          ${t.status === 'holding' ? `<button class="btn btn-ghost btn-sm" onclick="markSold(${t.id})">فروش</button>` : ''}
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function signalBg(s) {
+    const map = {STRONG_BUY:'#00e67620',BUY:'#69f0ae20',HOLD:'#ffd74020',
+                 HOLD_DOLLAR:'#ff8c0025',SELL_PARTIAL:'#ff6d0020',STRONG_SELL:'#ff174420'};
+    return map[s] || '#ffffff10';
+  }
+  function signalColor(s) {
+    const map = {STRONG_BUY:'#00e676',BUY:'#69f0ae',HOLD:'#ffd740',
+                 HOLD_DOLLAR:'#ff8c00',SELL_PARTIAL:'#ff6d00',STRONG_SELL:'#ff1744'};
+    return map[s] || '#aaa';
+  }
+  function signalFa(s) {
+    const map = {STRONG_BUY:'خرید قوی',BUY:'خرید',HOLD:'نگهداری',
+                 HOLD_DOLLAR:'صبر — حباب دلار',SELL_PARTIAL:'فروش پله‌ای',STRONG_SELL:'فروش قوی'};
+    return map[s] || s;
+  }
+
+  async function markSold(id) {
+    if (!confirm('آیا این معامله به عنوان فروخته‌شده ثبت شود؟')) return;
+    await fetch(`/api/trades/${id}`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({status:'sold'})
+    });
+    loadTrades();
+    loadMarket();
+  }
+
+  // ── Market data ────────────────────────────────────────────────────────────
+  async function loadMarket() {
+    try {
+      const res = await fetch('/api/market');
+      if (!res.ok) throw new Error(res.statusText);
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error || 'خطا');
+      _market = d;
+
+      document.getElementById('status-dot').className = 'live';
+      document.getElementById('last-updated').textContent =
+        'به‌روزرسانی: ' + toPersianDate(d.fetched_at);
+
+      document.getElementById('kpi-gold-usd').textContent = fmtUSD(d.gold_usd);
+
+      // Market dollar + its deviation from baseline
+      document.getElementById('kpi-usd-toman').textContent = fmt(d.usd_toman);
+      const dollarDev = d.dollar_deviation_pct;
+      const dollarDevEl = document.getElementById('kpi-usd-dev');
+      const dollarDevStr = (dollarDev >= 0 ? '+' : '') + dollarDev.toFixed(1) + '% نسبت به پایه';
+      dollarDevEl.textContent = dollarDevStr;
+      dollarDevEl.style.color = Math.abs(dollarDev) < 3 ? 'var(--muted)'
+                               : dollarDev > 0 ? 'var(--orange)' : 'var(--green)';
+
+      // Market 18k gold
+      if (d.gold_18k_toman) {
+        document.getElementById('kpi-market-18k').textContent = fmt(d.gold_18k_toman);
+      } else {
+        document.getElementById('kpi-market-18k').innerHTML =
+          '<span class="kpi-err" style="font-size:12px">محاسبه‌شده</span>';
+      }
+
+      // Baseline dollar + month label
+      document.getElementById('kpi-base-dollar').textContent = fmt(d.baseline_dollar);
+      const shamsiMonths = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور',
+                            'مهر','آبان','آذر','دی','بهمن','اسفند'];
+      const mName = shamsiMonths[d.shamsi_month - 1] || '';
+      const shamsiYear = d.shamsi_year ?? 1405;
+      const monthlyGrowth = d.monthly_growth ?? 4600;
+      const dailyGrowth  = d.daily_growth  ?? (monthlyGrowth / 30.4375);
+      const daysElapsed  = d.days_elapsed  ?? 0;
+      const yearStart = d.year_start_dollar ?? 154000;
+      document.getElementById('kpi-base-month').textContent =
+        mName + ' ' + shamsiYear.toLocaleString('fa-IR') +
+        ' — روز ' + daysElapsed.toLocaleString('fa-IR') +
+        ' (رشد ' + Math.round(dailyGrowth).toLocaleString('fa-IR') + ' ت/روز)';
+
+      // Baseline formula box (in gauge card)
+      const added = Math.round(daysElapsed * dailyGrowth);
+      document.getElementById('baseline-formula').textContent =
+        `${fmt(yearStart)} + ${daysElapsed.toLocaleString('fa-IR')} روز × ${Math.round(dailyGrowth).toLocaleString('fa-IR')} = ${fmt(yearStart)} + ${fmt(added)} = ${fmt(d.baseline_dollar)} تومان`;
+      document.getElementById('bf-market').textContent = fmt(d.usd_toman) + ' تومان';
+      const diff = Math.round(d.usd_toman - d.baseline_dollar);
+      const diffEl = document.getElementById('bf-diff');
+      diffEl.textContent = (diff >= 0 ? '+' : '') + fmt(diff) + ' تومان (' + (d.dollar_deviation_pct >= 0 ? '+' : '') + d.dollar_deviation_pct.toFixed(1) + '%)';
+      diffEl.style.color = Math.abs(diff) < 2000 ? 'var(--muted)' : diff > 0 ? 'var(--orange)' : 'var(--green)';
+
+      // Gold IV formula box
+      // Formula: (gold_usd × baseline_dollar / 31.1035) × (750/999) = IV
+      const TROY = 31.1035;
+      const PURITY = 750 / 999;
+      document.getElementById('gold-formula').textContent =
+        `($${d.gold_usd.toLocaleString('en-US')} × ${fmt(d.baseline_dollar)}) ÷ ${TROY} × ${(PURITY).toFixed(3)} = ${fmt(d.intrinsic_value_18k)} تومان/گرم`;
+      document.getElementById('gf-market').textContent = fmt(d.gold_18k_toman) + ' تومان/گرم';
+      const ivDiff = Math.round(d.gold_18k_toman - d.intrinsic_value_18k);
+      const ivDev  = d.deviation_pct;
+      const gfDiffEl = document.getElementById('gf-diff');
+      gfDiffEl.textContent =
+        (ivDiff >= 0 ? '+' : '') + fmt(ivDiff) + ' تومان (' + (ivDev >= 0 ? '+' : '') + ivDev.toFixed(2) + '%)';
+      gfDiffEl.style.color = ivDev < -5 ? 'var(--green)' : ivDev > 5 ? 'var(--red)' : 'var(--muted)';
+
+      // Intrinsic value (baseline-anchored)
+      document.getElementById('kpi-iv-18k').textContent = fmt(d.intrinsic_value_18k);
+
+      // Gold deviation KPI
+      const goldDev = d.deviation_pct;
+      const goldDevEl = document.getElementById('kpi-gold-dev');
+      goldDevEl.textContent = (goldDev >= 0 ? '+' : '') + goldDev.toFixed(2) + '%';
+      goldDevEl.style.color = goldDev < -5 ? 'var(--green)' : goldDev < 5 ? 'var(--yellow)' : 'var(--red)';
+
+      // Delta gauge
+      const delta = d.deviation_pct;
+      const deltaLabel = document.getElementById('delta-label');
+      deltaLabel.textContent = (delta > 0 ? '+' : '') + delta.toFixed(2) + '%';
+      deltaLabel.style.color = d.signal_color;
+      setNeedle(delta);
+
+      // Signal
+      applySignal(d);
+
+      // Scenarios
+      renderScenarios(d.scenarios);
+      const hasgoldTarget = d.scenarios && d.scenarios[0] && d.scenarios[0].gold_target_eoy_usd;
+      document.getElementById('scenarios-title-sub').textContent =
+        'رشد ماهانه دلار' +
+        (hasgoldTarget ? ` + پیش‌بینی طلا $${Math.round(hasgoldTarget).toLocaleString('en-US')}` : '') +
+        ' / ماه شمسی';
+
+      // Portfolio
+      const p = d.portfolio;
+      document.getElementById('port-grams').textContent = fmt(p.total_grams, 2);
+      document.getElementById('port-cost').textContent = fmt(p.total_cost_toman);
+
+      if (d.pnl && p.total_grams > 0) {
+        const pnl = d.pnl;
+        const pnlEl = document.getElementById('port-pnl');
+        const pnlPct = document.getElementById('port-pnl-pct');
+        const positive = pnl.pnl_toman >= 0;
+        pnlEl.textContent = (positive ? '+' : '') + fmt(pnl.pnl_toman);
+        pnlEl.style.color = positive ? 'var(--green)' : 'var(--red)';
+        pnlPct.textContent = (positive ? '+' : '') + pnl.pnl_pct.toFixed(2) + '% | ' + fmt(pnl.current_value_toman) + ' تومان ارزش فعلی';
+      } else {
+        document.getElementById('port-pnl').textContent = '—';
+        document.getElementById('port-pnl-pct').textContent = 'هنوز خریدی ثبت نشده';
+      }
+
+    } catch (e) {
+      document.getElementById('status-dot').className = '';
+      document.getElementById('last-updated').textContent = 'خطا در دریافت داده: ' + e.message;
+      console.error(e);
+    }
+  }
+
+  // ── Modal ──────────────────────────────────────────────────────────────────
+  function openModal() { document.getElementById('modal-overlay').classList.add('open'); }
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+    document.getElementById('err-msg').textContent = '';
+  }
+
+  document.getElementById('modal-overlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+
+  function updateTotal() {
+    const w = parseFloat(document.getElementById('f-weight').value) || 0;
+    const p = parseFloat(document.getElementById('f-price').value) || 0;
+    const total = w * p;
+    document.getElementById('f-total').textContent =
+      total > 0 ? 'جمع کل: ' + fmt(total) + ' تومان' : 'جمع کل: —';
+  }
+
+  document.getElementById('f-weight').addEventListener('input', updateTotal);
+  document.getElementById('f-price').addEventListener('input', updateTotal);
+
+  async function submitTrade() {
+    const weight = parseFloat(document.getElementById('f-weight').value);
+    const price  = parseFloat(document.getElementById('f-price').value);
+    const notes  = document.getElementById('f-notes').value.trim();
+    const errEl  = document.getElementById('err-msg');
+
+    if (!weight || weight <= 0 || !price || price <= 0) {
+      errEl.textContent = 'لطفاً وزن و قیمت معتبر وارد کنید.';
+      return;
+    }
+
+    const body = {
+      weight_grams: weight,
+      price_per_gram_toman: price,
+      notes,
+      gold_usd:        _market?.gold_usd ?? null,
+      usd_toman:       _market?.usd_toman ?? null,
+      baseline_dollar: _market?.baseline_dollar ?? null,
+      intrinsic_value: _market?.intrinsic_value_18k ?? null,
+      deviation_pct:   _market?.deviation_pct ?? null,
+      signal:          _market?.signal ?? null,
+    };
+
+    try {
+      const res = await fetch('/api/trades', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      closeModal();
+      document.getElementById('f-weight').value = '';
+      document.getElementById('f-price').value = '';
+      document.getElementById('f-notes').value = '';
+      document.getElementById('f-total').textContent = 'جمع کل: —';
+
+      await Promise.all([loadTrades(), loadMarket()]);
+    } catch (e) {
+      errEl.textContent = 'خطا: ' + e.message;
+    }
+  }
+
+  // ── Init & polling ─────────────────────────────────────────────────────────
+  loadMarket();
+  loadTrades();
+  setInterval(loadMarket, 5 * 60 * 1000); // refresh every 5 min
+</script>
+</body>
+</html>

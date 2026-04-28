@@ -1,0 +1,267 @@
+# Gold Trading System — Project Memory
+
+## What This Is
+A Flask web app for tracking Iranian 18k gold trades against a fundamental-value model.
+The core idea: gold has an **intrinsic value** based on the global gold price and a
+**baseline dollar** that grows predictably with inflation. Deviations from that IV
+generate buy/sell/hold signals. All text in the UI is Persian (RTL, `fa-IR` locale).
+
+Run with: `python app.py` → http://localhost:5000
+
+---
+
+## File Map
+
+| File | Purpose |
+|---|---|
+| `app.py` | Flask routes |
+| `config.py` | Physical constants only (purity, troy oz, DB path) |
+| `settings.py` | User-configurable params persisted to `data/settings.json` |
+| `strategy.py` | All signal/IV/scenario math |
+| `fetcher.py` | Live price scraping (bonbast.com) + cache |
+| `database.py` | SQLite — trades + market_cache tables |
+| `templates/index.html` | Main dashboard (RTL dark terminal theme) |
+| `templates/settings.html` | Settings page with live preview |
+| `data/settings.json` | Runtime settings (overrides DEFAULTS in settings.py) |
+| `data/gold_trades.db` | SQLite database |
+
+---
+
+## Core Formula
+
+```
+18k Intrinsic Value (Toman/gram) = (gold_oz_usd × baseline_dollar / 31.1035) × (750/999)
+```
+
+- `GOLD_PURITY_18K = 750/999` — exact 18k purity ratio (NOT 0.75)
+- `TROY_OZ_TO_GRAM = 31.1035`
+- Both are physical constants in `config.py`, never user-settable
+
+### Baseline Dollar (daily precision)
+```
+baseline = year_start_dollar + days_since_farvardin_1 × daily_growth
+daily_growth = monthly_growth / 30.4375        (365.25 / 12)
+monthly_growth = year_start × annual_inflation / 100 / 12   (auto mode)
+             OR manual_monthly_growth                         (manual mode)
+```
+
+**Critical**: IV is always anchored to the BASELINE dollar, never the market dollar.
+The market dollar is only used to compute `dollar_dev`.
+
+---
+
+## Signal Logic (Two-Dimensional)
+
+```
+dollar_dev = (market_dollar - baseline_dollar) / baseline_dollar × 100
+gold_dev   = (market_gold_18k - IV_at_baseline) / IV_at_baseline × 100
+```
+
+**Step 1 — Dollar premium check** (when `dollar_dev > 0`):
+```
+adj_rr = |gold_dev| / dollar_dev
+if adj_rr < min_rr_ratio  →  HOLD_DOLLAR (orange, "#ff8c00")
+```
+Dollar is overvalued; a correction would drag gold down with it.
+Only proceed to gold signal if gold discount is large enough to absorb dollar risk.
+
+**Step 2 — Gold deviation signal**:
+```
+If dollar_dev < 0:  effective_dev = gold_dev + dollar_dev  (undervalued dollar boosts buy case)
+Else:               effective_dev = gold_dev
+
+effective_dev < -15  →  STRONG_BUY  (green,  "#00e676", rr=8.0)
+effective_dev < -5   →  BUY         (mint,   "#69f0ae", rr=4.5)
+effective_dev < +5   →  HOLD        (yellow, "#ffd740", rr=1.5)
+effective_dev < +15  →  SELL_PARTIAL(orange, "#ff6d00", rr=-2.5)
+else                 →  STRONG_SELL (red,    "#ff1744", rr=-6.0)
+```
+
+---
+
+## Settings System
+
+All user-configurable values live in `settings.py` / `data/settings.json`.
+Never read from `config.py` for these — always `_settings.load()`.
+
+| Key | Default | Description |
+|---|---|---|
+| `year_start_dollar` | 154,000 | Free-market USD/Toman on Farvardin 1 |
+| `annual_inflation_pct` | 35.84 | % annual dollar growth (used in auto mode) |
+| `use_auto_growth` | False | True = derive monthly from inflation; False = use manual |
+| `monthly_growth_manual` | 4,600 | Toman/month (used in manual mode) |
+| `optimistic_multiplier` | 1.5 | Scenario growth multiplier |
+| `realistic_multiplier` | 1.0 | Scenario growth multiplier |
+| `conservative_multiplier` | 0.5 | Scenario growth multiplier |
+| `gold_target_eoy_usd` | 0 | Analyst end-of-year gold price target in USD/oz; 0 = no forecast (gold stays fixed in scenarios) |
+| `min_rr_ratio` | 3.0 | Minimum adj R/R for BUY signal when dollar is hot |
+| `shamsi_year` | 1405 | Display only |
+
+Helper functions (always accept optional `s=None`, load if None):
+- `_settings.get_monthly_growth(s)` — respects auto/manual toggle
+- `_settings.get_year_start_dollar(s)`
+- `_settings.get_min_rr_ratio(s)`
+
+---
+
+## Live Data — bonbast.com
+
+Two-step scrape (must preserve session between steps):
+1. `GET https://www.bonbast.com/` → regex `param:\s*['"]([^'"]+)['"]` to extract token
+2. `POST https://www.bonbast.com/json` with `data={"param": token}`
+
+Response fields used:
+- `usd1` → free-market USD in Toman
+- `gol18` → 18k gold price in Toman/gram (used as market_price_18k)
+- `ounce` → NOT used for gold USD (Tehran local reflection, inaccurate vs COMEX)
+
+**Gold USD source**: Yahoo Finance COMEX `GC=F` is the PRIMARY source.
+→ `https://query1.finance.yahoo.com/v8/finance/chart/GC=F`
+→ `response["chart"]["result"][0]["meta"]["regularMarketPrice"]`
+Bonbast `ounce` field is the fallback only if Yahoo is unreachable.
+
+Cache TTL: 300 seconds (in SQLite `market_cache` table).
+
+---
+
+## API Response from `/api/market`
+
+The JS dashboard reads these fields from `GET /api/market`:
+
+```json
+{
+  "gold_usd": 3300,
+  "usd_toman": 166750,
+  "gold_18k_toman": 19500000,
+  "fetched_at": "...",
+  "sources_ok": { "gold_usd": true, "usd_toman": true, "gold_18k_toman": true },
+  "shamsi_month": 2,
+  "shamsi_year": 1405,
+  "year_start_dollar": 145000,
+  "monthly_growth": 7250,
+  "daily_growth": 238.3,
+  "days_elapsed": 58,
+  "baseline_dollar": 158835,
+  "dollar_deviation_pct": 4.99,
+  "intrinsic_value_18k": 19200000,
+  "market_price_18k": 19500000,
+  "gold_24k_gram_toman": 17600000,
+  "deviation_pct": 1.56,
+  "rr": 1.5,
+  "rr_acceptable": false,
+  "signal": "HOLD_DOLLAR",
+  "signal_fa": "صبر — حباب دلار",
+  "signal_color": "#ff8c00",
+  "signal_description": "...",
+  "scenarios": [...],
+  "portfolio": { "total_grams": 5.0, "total_cost_toman": 90000000, "avg_price_per_gram": 18000000, "trade_count": 2 },
+  "pnl": { "current_value_toman": 97500000, "pnl_toman": 7500000, "pnl_pct": 8.33 }
+}
+```
+
+---
+
+## Database Schema
+
+```sql
+CREATE TABLE trades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    weight_grams REAL NOT NULL,
+    price_per_gram_toman REAL NOT NULL,
+    total_cost_toman REAL NOT NULL,
+    gold_usd_at_time REAL,
+    usd_toman_at_time REAL,
+    baseline_dollar_at_time REAL,
+    intrinsic_value_at_time REAL,
+    deviation_pct_at_time REAL,
+    signal_at_time TEXT,
+    notes TEXT,
+    status TEXT DEFAULT 'holding'   -- 'holding' | 'sold' | 'partial'
+);
+
+CREATE TABLE market_cache (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+```
+
+Trade status flow: `holding` → `sold` or `partial` via `PATCH /api/trades/<id>`.
+Portfolio summary only counts rows where `status = 'holding'`.
+
+---
+
+## UI Architecture
+
+- **Dark trading terminal theme**: `--bg: #0d1117`, `--surface: #161b22`
+- **RTL layout** (`dir="rtl"`, `lang="fa"`)
+- **Persian numbers** everywhere via `.toLocaleString('fa-IR')`
+- **Shamsi months** displayed using JS `Intl.DateTimeFormat` with `fa-IR` locale
+- All pages have `Cache-Control: no-store` headers (Flask sets this explicitly)
+
+### Dashboard sections (index.html)
+1. **KPI row** — gold USD, market dollar + dollar_dev %, 18k bazaar price, baseline dollar, IV at baseline, gold deviation %
+2. **Gauge card** — SVG needle gauge showing gold deviation + baseline formula box:
+   `{year_start} + {days_elapsed} روز × {daily_growth} = {baseline_dollar} تومان`
+3. **Signal card** — badge + Persian description + R/R display
+4. **Scenarios** — 3×3 grid (optimistic/realistic/conservative × 3m/6m/12m) with prices and target dates
+5. **Portfolio summary** — total grams, total cost, avg price, P&L
+6. **Trades table** — 13 columns including snapshot values at time of trade
+7. **Add trade modal** — pre-fills market snapshot; records full context
+
+### Settings page (settings.html)
+- Dollar growth model section (year start, inflation %, auto/manual toggle, manual monthly)
+- Live preview: formula box + end-of-year projection, updates on every keystroke
+- Scenario multipliers section + live scenario preview
+- Signal rules section (min R/R, shamsi year)
+- Save → `PUT /api/settings`; revert button reloads from server
+
+---
+
+## Known Architectural Decisions
+
+**Why baseline dollar, not market dollar, anchors IV?**
+The market dollar includes a political/crisis premium that can collapse suddenly.
+Anchoring IV to the expected (inflation-projected) dollar prevents buying into a bubble.
+
+**Why two deviations instead of one?**
+Gold in Toman = gold_usd × usd_toman. If usd_toman is inflated, the Toman gold price
+looks cheap but isn't — it will fall when the dollar corrects. The adj R/R gate
+(`|gold_dev| / dollar_dev ≥ min_rr`) ensures the gold discount compensates for dollar risk.
+
+**Why daily interpolation instead of monthly steps?**
+Monthly steps create a sawtooth baseline that jumps at month boundaries. Daily linear
+interpolation (`days_since_farvardin_1 × daily_growth`) gives a smooth, more accurate baseline.
+
+**Why `750/999` and not `0.75` for 18k purity?**
+18k gold is 18/24 = 750 parts per 1000 fine gold by the Iranian standard. Using `750/999`
+matches how Iranian bazaar gold is hallmarked and priced.
+
+---
+
+## Common Pitfalls
+
+- **Windows console Unicode**: `print()` with Persian chars crashes on cp1252. Not a real bug.
+- **Browser cache**: All routes must return `Cache-Control: no-store`. Already set in Flask.
+- **bonbast.com token**: The `param` token rotates per session. Must use the same `requests.Session()` for both the GET and the POST.
+- **`MIN_RR_RATIO` in strategy.py**: Must be `_settings.get_min_rr_ratio()`, NOT the constant from `config.py`. The constant in config.py is a stale fallback and should not be used in strategy logic.
+- **Scenarios use monthly steps for future projections** (not daily). This is intentional — projecting 3/6/12 months ahead, monthly granularity is sufficient.
+
+**Gold USD in scenarios**: if `gold_target_eoy_usd > 0`, each scenario's future gold price is interpolated:
+`future_gold = current_gold + (target - current_gold) × multiplier × (months / 12)`
+The same scenario multiplier (1.5/1.0/0.5) scales both dollar growth and gold growth.
+Realistic at 12m lands exactly on the user's target. If target = 0, gold is frozen at current price (old behaviour).
+
+---
+
+## Dependencies
+
+```
+flask>=3.0.0
+requests>=2.31.0
+jdatetime>=4.1.1
+python-dateutil>=2.9.0
+```
+
+Python 3.13, Windows 11. Run: `python app.py` (debug mode, port 5000).

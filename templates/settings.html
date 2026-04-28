@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تنظیمات — سیستم معاملاتی طلا</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #21262d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --gold: #f0b429;
+    --gold-dim: #7d5a00;
+    --green: #00e676;
+    --red: #ff1744;
+    --orange: #ff6d00;
+    --yellow: #ffd740;
+    --accent: #58a6ff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  header h1 { font-size: 18px; color: var(--gold); font-weight: 700; letter-spacing: .5px; }
+  header h1 span { color: var(--muted); font-size: 13px; font-weight: 400; margin-right: 10px; }
+
+  .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    transition: color .2s, border-color .2s;
+  }
+  .nav-link:hover { color: var(--gold); border-color: var(--gold-dim); }
+
+  .page { max-width: 900px; margin: 0 auto; padding: 28px 24px; }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--muted);
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title .icon { font-size: 14px; }
+  .section-body { padding: 20px; }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 28px;
+  }
+  .form-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .form-grid.cols-1 { grid-template-columns: 1fr; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+    letter-spacing: .3px;
+  }
+  .field .hint { font-size: 11px; color: var(--muted); opacity: .7; margin-top: 2px; }
+
+  .field input[type="number"],
+  .field input[type="text"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 13px;
+    color: var(--text);
+    font-size: 15px;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+    width: 100%;
+  }
+  .field input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(240,180,41,.12);
+  }
+  .field input.invalid { border-color: var(--red); }
+
+  .field .input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .field .input-wrap input { padding-left: 42px; }
+  .field .input-wrap .unit {
+    position: absolute;
+    left: 13px;
+    font-size: 12px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  /* Toggle switch */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+  }
+  .toggle-row:last-child { border-bottom: none; margin-bottom: 0; }
+  .toggle-label { font-size: 14px; }
+  .toggle-sublabel { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  .toggle {
+    position: relative;
+    width: 46px;
+    height: 26px;
+    flex-shrink: 0;
+    margin-right: 12px;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 26px;
+    cursor: pointer;
+    transition: background .25s;
+  }
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    left: 4px; bottom: 4px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: transform .25s, background .25s;
+  }
+  .toggle input:checked + .toggle-slider { background: var(--gold-dim); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(20px); background: var(--gold); }
+
+  /* Preview panel */
+  .preview {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-top: 20px;
+  }
+  .preview-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--muted);
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .preview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .preview-item { text-align: center; }
+  .preview-item .p-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .preview-item .p-val { font-size: 17px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .preview-item .p-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .formula-box {
+    background: rgba(240,180,41,.06);
+    border: 1px solid rgba(240,180,41,.2);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.9;
+    margin-top: 10px;
+  }
+  .formula-box .f-val { color: var(--gold); font-weight: 600; }
+
+  /* Scenario preview */
+  .scenario-preview {
+    display: grid;
+    grid-template-columns: repeat(3,1fr);
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .sp-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+  .sp-name { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .sp-growth { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .sp-eoy { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .sp-eoy span { color: var(--gold); font-weight: 600; }
+
+  /* Buttons */
+  .actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 22px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    transition: opacity .2s, transform .1s;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn:hover { opacity: .85; }
+  .btn-gold { background: var(--gold); color: #000; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
+  #save-status {
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity .4s;
+  }
+  #save-status.show { opacity: 1; }
+  #save-status.ok  { color: var(--green); }
+  #save-status.err { color: var(--red); }
+
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 700px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .form-grid.cols-3 { grid-template-columns: 1fr; }
+    .preview-grid { grid-template-columns: 1fr 1fr; }
+    .scenario-preview { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>⚙️ تنظیمات <span>Settings</span></h1>
+  </div>
+  <a href="/" class="nav-link">← بازگشت به داشبورد</a>
+</header>
+
+<div class="page">
+
+  <!-- Dollar Growth Model -->
+  <div class="section">
+    <div class="section-title"><span class="icon">💵</span> مدل رشد دلار</div>
+    <div class="section-body">
+
+      <div class="form-grid">
+        <div class="field">
+          <label>دلار اول فروردین (تومان)</label>
+          <div class="input-wrap">
+            <input type="number" id="year_start_dollar" min="1000" max="10000000" step="1000">
+          </div>
+          <div class="hint">قیمت دلار آزاد در اولین روز سال شمسی</div>
+        </div>
+        <div class="field">
+          <label>تورم سالانه دلار (%)</label>
+          <div class="input-wrap">
+            <input type="number" id="annual_inflation_pct" min="1" max="500" step="1">
+            <span class="unit">%</span>
+          </div>
+          <div class="hint">استفاده در حالت خودکار: رشد ماهانه = دلار اول سال × تورم / ۱۲</div>
+        </div>
+      </div>
+
+      <div class="toggle-row" style="margin-top:20px;">
+        <div>
+          <div class="toggle-label">محاسبه خودکار رشد ماهانه از تورم</div>
+          <div class="toggle-sublabel" id="growth-mode-hint">در حال استفاده از مقدار دستی</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="use_auto_growth">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="field" id="manual-growth-field">
+        <label>رشد ماهانه دستی (تومان/ماه)</label>
+        <div class="input-wrap">
+          <input type="number" id="monthly_growth_manual" min="100" max="500000" step="100">
+        </div>
+        <div class="hint">مقدار ثابتی که هر ماه به دلار پایه اضافه می‌شود</div>
+      </div>
+
+      <!-- Live preview -->
+      <div class="preview" id="dollar-preview">
+        <div class="preview-title">پیش‌نمایش — ماه جاری</div>
+        <div class="preview-grid">
+          <div class="preview-item">
+            <div class="p-label">رشد ماهانه مؤثر</div>
+            <div class="p-val" id="prev-monthly">—</div>
+            <div class="p-sub">تومان / ماه</div>
+          </div>
+          <div class="preview-item">
+            <div class="p-label">دلار پایه ماه جاری</div>
+            <div class="p-val" id="prev-baseline">—</div>
+            <div class="p-sub">تومان (ماه <span id="prev-month-num">—</span>)</div>
+          </div>
+          <div class="preview-item">
+            <div class="p-label">دلار پایه پایان سال</div>
+            <div class="p-val" id="prev-eoy">—</div>
+            <div class="p-sub">تومان (ماه ۱۲)</div>
+          </div>
+        </div>
+        <div class="formula-box" id="formula-box">—</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Scenario Multipliers -->
+  <div class="section">
+    <div class="section-title"><span class="icon">📊</span> ضریب سناریوها</div>
+    <div class="section-body">
+
+      <div class="form-grid cols-3">
+        <div class="field">
+          <label>خوش‌بینانه (ضریب رشد)</label>
+          <div class="input-wrap">
+            <input type="number" id="optimistic_multiplier" min="0.1" max="10" step="0.1">
+            <span class="unit">×</span>
+          </div>
+          <div class="hint">رشد واقعی × این ضریب</div>
+        </div>
+        <div class="field">
+          <label>واقع‌بینانه (ضریب رشد)</label>
+          <div class="input-wrap">
+            <input type="number" id="realistic_multiplier" min="0.1" max="10" step="0.1">
+            <span class="unit">×</span>
+          </div>
+          <div class="hint">معمولاً ۱.۰ (بدون تغییر)</div>
+        </div>
+        <div class="field">
+          <label>محافظه‌کارانه (ضریب رشد)</label>
+          <div class="input-wrap">
+            <input type="number" id="conservative_multiplier" min="0.1" max="10" step="0.1">
+            <span class="unit">×</span>
+          </div>
+          <div class="hint">رشد کمتر از انتظار</div>
+        </div>
+      </div>
+
+      <!-- Scenario preview -->
+      <div class="preview" style="margin-top:18px;">
+        <div class="preview-title">پیش‌نمایش سناریوها — رشد ماهانه و دلار پایان سال</div>
+        <div class="scenario-preview">
+          <div class="sp-card">
+            <div class="sp-name">خوش‌بینانه</div>
+            <div class="sp-growth" id="sp-opt-growth">—</div>
+            <div class="sp-eoy">پایان سال: <span id="sp-opt-eoy">—</span></div>
+          </div>
+          <div class="sp-card">
+            <div class="sp-name">واقع‌بینانه</div>
+            <div class="sp-growth" id="sp-real-growth">—</div>
+            <div class="sp-eoy">پایان سال: <span id="sp-real-eoy">—</span></div>
+          </div>
+          <div class="sp-card">
+            <div class="sp-name">محافظه‌کارانه</div>
+            <div class="sp-growth" id="sp-cons-growth">—</div>
+            <div class="sp-eoy">پایان سال: <span id="sp-cons-eoy">—</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Gold USD Forecast -->
+  <div class="section">
+    <div class="section-title"><span class="icon">📈</span> پیش‌بینی قیمت جهانی طلا (پایان سال)</div>
+    <div class="section-body">
+
+      <div class="form-grid">
+        <div class="field">
+          <label>هدف قیمت طلا پایان سال (USD/oz)</label>
+          <div class="input-wrap">
+            <input type="number" id="gold_target_eoy_usd" min="0" max="50000" step="50">
+            <span class="unit">$</span>
+          </div>
+          <div class="hint">
+            پیش‌بینی تحلیلگران برای انس طلا در پایان سال شمسی.
+            صفر = بدون پیش‌بینی (قیمت فعلی در همه سناریوها ثابت می‌ماند).
+          </div>
+        </div>
+        <div class="field" style="display:flex; flex-direction:column; justify-content:center;">
+          <div class="hint" style="font-size:12px; line-height:1.8;">
+            <strong style="color:var(--text)">نحوه استفاده در سناریوها:</strong><br>
+            رشد طلا از قیمت امروز تا هدف، به نسبت زمان و ضریب سناریو اعمال می‌شود.<br>
+            خوش‌بینانه (۱.۵×): هدف × ۱.۵ &nbsp;|&nbsp; واقع‌بینانه (۱×): دقیقاً هدف &nbsp;|&nbsp; محافظه‌کارانه (۰.۵×): نیمه مسیر
+          </div>
+        </div>
+      </div>
+
+      <div class="preview" id="gold-preview" style="margin-top:18px;">
+        <div class="preview-title">پیش‌نمایش طلا (USD/oz) در سناریوها — ۱۲ ماه آینده</div>
+        <div class="scenario-preview">
+          <div class="sp-card">
+            <div class="sp-name">خوش‌بینانه</div>
+            <div class="sp-growth" id="gp-opt" style="color:var(--green)">—</div>
+            <div class="sp-eoy" id="gp-opt-delta" style="font-size:11px; color:var(--muted);">—</div>
+          </div>
+          <div class="sp-card">
+            <div class="sp-name">واقع‌بینانه</div>
+            <div class="sp-growth" id="gp-real" style="color:var(--gold)">—</div>
+            <div class="sp-eoy" id="gp-real-delta" style="font-size:11px; color:var(--muted);">—</div>
+          </div>
+          <div class="sp-card">
+            <div class="sp-name">محافظه‌کارانه</div>
+            <div class="sp-growth" id="gp-cons" style="color:var(--yellow)">—</div>
+            <div class="sp-eoy" id="gp-cons-delta" style="font-size:11px; color:var(--muted);">—</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Signal Rules -->
+  <div class="section">
+    <div class="section-title"><span class="icon">🎯</span> قوانین سیگنال</div>
+    <div class="section-body">
+      <div class="form-grid">
+        <div class="field">
+          <label>حداقل نسبت R/R برای سیگنال خرید</label>
+          <div class="input-wrap">
+            <input type="number" id="min_rr_ratio" min="0.5" max="20" step="0.5">
+          </div>
+          <div class="hint">
+            هنگامی که دلار بالاتر از پایه است: R/R = |افت طلا| / حباب دلار.
+            اگر کمتر از این مقدار باشد، سیگنال HOLD_DOLLAR صادر می‌شود.
+          </div>
+        </div>
+        <div class="field">
+          <label>سال شمسی جاری</label>
+          <div class="input-wrap">
+            <input type="number" id="shamsi_year" min="1380" max="1450" step="1">
+          </div>
+          <div class="hint">برای نمایش در رابط کاربری</div>
+        </div>
+      </div>
+
+      <div class="preview" style="margin-top:18px;">
+        <div class="preview-title">وضعیت سیگنال‌ها</div>
+        <div style="font-size:13px; color:var(--muted); line-height:2;">
+          <div>🟢 <strong style="color:var(--green)">خرید قوی</strong> — انحراف طلا &lt; −۱۵٪</div>
+          <div>🟩 <strong style="color:#69f0ae">خرید</strong> — انحراف طلا بین −۱۵٪ تا −۵٪</div>
+          <div>🟡 <strong style="color:var(--yellow)">نگهداری</strong> — انحراف طلا بین −۵٪ تا +۵٪</div>
+          <div>🟠 <strong style="color:var(--orange)">فروش پله‌ای</strong> — انحراف طلا بین +۵٪ تا +۱۵٪</div>
+          <div>🔴 <strong style="color:var(--red)">فروش قوی</strong> — انحراف طلا &gt; +۱۵٪</div>
+          <div style="margin-top:6px;">🟧 <strong style="color:#ff8c00">صبر — حباب دلار</strong> — دلار بالای پایه و R/R &lt; <span id="rr-display" style="color:var(--gold)">۳.۰</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions">
+    <span id="save-status"></span>
+    <button class="btn btn-ghost" onclick="loadSettings()">↺ بازگشت به مقادیر ذخیره‌شده</button>
+    <button class="btn btn-gold" onclick="saveSettings()">💾 ذخیره تنظیمات</button>
+  </div>
+
+</div>
+
+<script>
+const fmt = n => n == null ? '—' : Math.round(n).toLocaleString('fa-IR');
+const fmtF = (n, d=1) => n == null ? '—' : n.toLocaleString('fa-IR', {minimumFractionDigits:d, maximumFractionDigits:d});
+
+// Current shamsi month and live gold price — fetched from server
+let _shamsiMonth = 1;
+let _currentGoldUsd = 0;
+
+async function loadSettings() {
+  try {
+    const resp = await fetch('/api/market');
+    if (resp.ok) {
+      const d = await resp.json();
+      if (d.shamsi_month) _shamsiMonth = d.shamsi_month;
+      if (d.gold_usd)     _currentGoldUsd = d.gold_usd;
+    }
+  } catch(_) {}
+
+  const resp = await fetch('/api/settings');
+  const s = await resp.json();
+
+  document.getElementById('year_start_dollar').value      = s.year_start_dollar;
+  document.getElementById('annual_inflation_pct').value   = s.annual_inflation_pct;
+  document.getElementById('use_auto_growth').checked      = s.use_auto_growth;
+  document.getElementById('monthly_growth_manual').value  = s.monthly_growth_manual;
+  document.getElementById('optimistic_multiplier').value  = s.optimistic_multiplier;
+  document.getElementById('realistic_multiplier').value   = s.realistic_multiplier;
+  document.getElementById('conservative_multiplier').value = s.conservative_multiplier;
+  document.getElementById('gold_target_eoy_usd').value    = s.gold_target_eoy_usd || 0;
+  document.getElementById('min_rr_ratio').value           = s.min_rr_ratio;
+  document.getElementById('shamsi_year').value            = s.shamsi_year;
+
+  updateToggleUI();
+  updatePreview();
+}
+
+function getValues() {
+  return {
+    year_start:    parseFloat(document.getElementById('year_start_dollar').value)     || 0,
+    inflation:     parseFloat(document.getElementById('annual_inflation_pct').value)  || 0,
+    auto:          document.getElementById('use_auto_growth').checked,
+    manual:        parseFloat(document.getElementById('monthly_growth_manual').value) || 0,
+    opt_mult:      parseFloat(document.getElementById('optimistic_multiplier').value)  || 1,
+    real_mult:     parseFloat(document.getElementById('realistic_multiplier').value)   || 1,
+    cons_mult:     parseFloat(document.getElementById('conservative_multiplier').value)|| 1,
+    gold_target:   parseFloat(document.getElementById('gold_target_eoy_usd').value)   || 0,
+    min_rr:        parseFloat(document.getElementById('min_rr_ratio').value)          || 3,
+  };
+}
+
+function effectiveMonthly(v) {
+  if (v.auto) return v.year_start * v.inflation / 100 / 12;
+  return v.manual;
+}
+
+function updateToggleUI() {
+  const auto = document.getElementById('use_auto_growth').checked;
+  const hint  = document.getElementById('growth-mode-hint');
+  const field = document.getElementById('manual-growth-field');
+  hint.textContent  = auto ? 'محاسبه خودکار از نرخ تورم فعال است' : 'در حال استفاده از مقدار دستی';
+  field.style.opacity = auto ? '.4' : '1';
+  field.style.pointerEvents = auto ? 'none' : '';
+}
+
+function updatePreview() {
+  const v = getValues();
+  const monthly = effectiveMonthly(v);
+  const baseline = v.year_start + (_shamsiMonth - 1) * monthly;
+  const eoy = v.year_start + 11 * monthly;
+
+  document.getElementById('prev-monthly').textContent  = fmt(monthly);
+  document.getElementById('prev-baseline').textContent = fmt(baseline);
+  document.getElementById('prev-eoy').textContent      = fmt(eoy);
+  document.getElementById('prev-month-num').textContent = _shamsiMonth.toLocaleString('fa-IR');
+
+  // Formula
+  const shamsiMonthFa = _shamsiMonth.toLocaleString('fa-IR');
+  document.getElementById('formula-box').innerHTML =
+    `<span class="f-val">${fmt(v.year_start)}</span> + ` +
+    `(<span class="f-val">${shamsiMonthFa}</span> − ۱) × ` +
+    `<span class="f-val">${fmt(monthly)}</span> = ` +
+    `<span class="f-val">${fmt(baseline)}</span>`;
+
+  // Scenario preview
+  const scenarios = [
+    { monthly: monthly * v.opt_mult,  growthEl: 'sp-opt-growth',  eoyEl: 'sp-opt-eoy'  },
+    { monthly: monthly * v.real_mult, growthEl: 'sp-real-growth', eoyEl: 'sp-real-eoy' },
+    { monthly: monthly * v.cons_mult, growthEl: 'sp-cons-growth', eoyEl: 'sp-cons-eoy' },
+  ];
+  scenarios.forEach(sc => {
+    const scEoy = v.year_start + 11 * sc.monthly;
+    document.getElementById(sc.growthEl).textContent = fmt(sc.monthly) + ' تومان/ماه';
+    document.getElementById(sc.eoyEl).textContent    = fmt(scEoy);
+  });
+
+  // R/R display
+  document.getElementById('rr-display').textContent = fmtF(v.min_rr, 1);
+
+  // Gold forecast preview
+  const annualDelta = v.gold_target > 0 ? v.gold_target - _currentGoldUsd : 0;
+  const mults = [
+    { mult: v.opt_mult,  priceEl: 'gp-opt',  deltaEl: 'gp-opt-delta'  },
+    { mult: v.real_mult, priceEl: 'gp-real', deltaEl: 'gp-real-delta' },
+    { mult: v.cons_mult, priceEl: 'gp-cons', deltaEl: 'gp-cons-delta' },
+  ];
+  mults.forEach(({ mult, priceEl, deltaEl }) => {
+    const futureGold = _currentGoldUsd + annualDelta * mult;
+    const delta = futureGold - _currentGoldUsd;
+    const deltaSign = delta >= 0 ? '+' : '';
+    document.getElementById(priceEl).textContent =
+      v.gold_target > 0
+        ? '$' + futureGold.toLocaleString('en-US', {maximumFractionDigits: 0})
+        : _currentGoldUsd > 0
+          ? '$' + Math.round(_currentGoldUsd).toLocaleString('en-US') + ' (ثابت)'
+          : '— (داده‌ای موجود نیست)';
+    document.getElementById(deltaEl).textContent =
+      v.gold_target > 0 && _currentGoldUsd > 0
+        ? deltaSign + '$' + Math.round(delta).toLocaleString('en-US') +
+          ' (' + deltaSign + (delta / _currentGoldUsd * 100).toFixed(1) + '%)'
+        : 'بدون پیش‌بینی';
+  });
+}
+
+async function saveSettings() {
+  const status = document.getElementById('save-status');
+  status.className = 'show';
+  status.innerHTML = 'در حال ذخیره... <span class="spinner"></span>';
+
+  const v = getValues();
+  const body = {
+    year_start_dollar:       Math.round(v.year_start),
+    annual_inflation_pct:    v.inflation,
+    use_auto_growth:         document.getElementById('use_auto_growth').checked,
+    monthly_growth_manual:   Math.round(v.manual),
+    optimistic_multiplier:   v.opt_mult,
+    realistic_multiplier:    v.real_mult,
+    conservative_multiplier: v.cons_mult,
+    gold_target_eoy_usd:     v.gold_target,
+    min_rr_ratio:            v.min_rr,
+    shamsi_year:             parseInt(document.getElementById('shamsi_year').value) || 1405,
+  };
+
+  try {
+    const resp = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      status.className = 'show ok';
+      status.textContent = '✓ تنظیمات ذخیره شد';
+    } else {
+      throw new Error('server error');
+    }
+  } catch(e) {
+    status.className = 'show err';
+    status.textContent = '✗ خطا در ذخیره';
+  }
+
+  setTimeout(() => { status.className = ''; }, 3000);
+}
+
+// Wire up live preview on every input change
+document.querySelectorAll('input').forEach(el => {
+  el.addEventListener('input', updatePreview);
+});
+document.getElementById('use_auto_growth').addEventListener('change', () => {
+  updateToggleUI();
+  updatePreview();
+});
+
+loadSettings();
+</script>
+</body>
+</html>
