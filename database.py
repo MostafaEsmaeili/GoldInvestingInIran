@@ -1,7 +1,11 @@
+import csv
+import os
 import sqlite3
 import json
 from datetime import datetime
 from config import DATABASE_PATH
+
+_CSV_PATH = "data/historical_prices.csv"
 
 
 def _conn():
@@ -34,11 +38,22 @@ def init_db():
                 value TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS historical_prices (
+                date           TEXT PRIMARY KEY,
+                usd_toman      REAL,
+                gold_18k_toman REAL,
+                source         TEXT DEFAULT 'tgju'
+            );
         """)
         # Safe migration: add column if the DB already existed without it
         cols = {r[1] for r in db.execute("PRAGMA table_info(trades)")}
         if "baseline_dollar_at_time" not in cols:
             db.execute("ALTER TABLE trades ADD COLUMN baseline_dollar_at_time REAL")
+
+    # Seed historical table from CSV if empty (enables fresh clone to have data)
+    if get_historical_status()["count"] == 0:
+        _load_historical_from_csv()
 
 
 def cache_set(key: str, value):
@@ -108,6 +123,79 @@ def get_all_trades():
 def update_trade_status(trade_id: int, status: str):
     with _conn() as db:
         db.execute("UPDATE trades SET status = ? WHERE id = ?", (status, trade_id))
+
+
+def _load_historical_from_csv():
+    """Seed historical_prices from CSV on first run after a fresh clone."""
+    if not os.path.exists(_CSV_PATH):
+        return
+    rows = []
+    try:
+        with open(_CSV_PATH, "r", encoding="utf-8", newline="") as f:
+            for r in csv.DictReader(f):
+                try:
+                    rows.append({
+                        "date":           r["date"],
+                        "usd_toman":      float(r["usd_toman"]) if r["usd_toman"] else None,
+                        "gold_18k_toman": float(r["gold_18k_toman"]) if r["gold_18k_toman"] else None,
+                        "source":         r.get("source", "tgju"),
+                    })
+                except (KeyError, ValueError):
+                    continue
+    except Exception as e:
+        print(f"[database] CSV load error: {e}")
+        return
+    if rows:
+        upsert_historical(rows)
+        print(f"[database] Seeded {len(rows)} historical rows from CSV")
+
+
+def export_historical_to_csv():
+    """Write all historical_prices to CSV so it can be committed to the repo."""
+    rows = get_historical()
+    os.makedirs(os.path.dirname(_CSV_PATH), exist_ok=True)
+    with open(_CSV_PATH, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["date", "usd_toman", "gold_18k_toman", "source"])
+        writer.writeheader()
+        writer.writerows(rows)
+    print(f"[database] Exported {len(rows)} rows to {_CSV_PATH}")
+
+
+def upsert_historical(rows: list[dict]):
+    """Bulk insert-or-replace into historical_prices. Each row: {date, usd_toman, gold_18k_toman, source}."""
+    with _conn() as db:
+        db.executemany(
+            "INSERT OR REPLACE INTO historical_prices (date, usd_toman, gold_18k_toman, source) VALUES (:date, :usd_toman, :gold_18k_toman, :source)",
+            rows,
+        )
+
+
+def get_historical(from_date: str = None, to_date: str = None) -> list[dict]:
+    """Return historical rows ordered by date asc, optionally filtered."""
+    query = "SELECT * FROM historical_prices"
+    params = []
+    if from_date and to_date:
+        query += " WHERE date BETWEEN ? AND ?"
+        params = [from_date, to_date]
+    elif from_date:
+        query += " WHERE date >= ?"
+        params = [from_date]
+    elif to_date:
+        query += " WHERE date <= ?"
+        params = [to_date]
+    query += " ORDER BY date ASC"
+    with _conn() as db:
+        rows = db.execute(query, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_historical_status() -> dict:
+    """Summary of what's stored in historical_prices."""
+    with _conn() as db:
+        row = db.execute(
+            "SELECT COUNT(*) as cnt, MIN(date) as oldest, MAX(date) as newest FROM historical_prices"
+        ).fetchone()
+    return {"count": row["cnt"], "from": row["oldest"], "to": row["newest"]}
 
 
 def get_portfolio_summary():

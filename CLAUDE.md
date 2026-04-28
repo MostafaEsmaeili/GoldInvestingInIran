@@ -19,9 +19,12 @@ Run with: `python app.py` → http://localhost:5000
 | `settings.py` | User-configurable params persisted to `data/settings.json` |
 | `strategy.py` | All signal/IV/scenario math |
 | `fetcher.py` | Live price scraping (bonbast.com) + cache |
-| `database.py` | SQLite — trades + market_cache tables |
+| `history.py` | Historical data fetcher — tgju.org APIs, bulk pagination, SQLite storage |
+| `analysis.py` | Correlation engine — lead-lag table, per-year OLS baseline, Pearson r |
+| `database.py` | SQLite — trades + market_cache + historical_prices tables |
 | `templates/index.html` | Main dashboard (RTL dark terminal theme) |
 | `templates/settings.html` | Settings page with live preview |
+| `templates/history.html` | Historical correlation analysis page |
 | `data/settings.json` | Runtime settings (overrides DEFAULTS in settings.py) |
 | `data/gold_trades.db` | SQLite database |
 
@@ -218,6 +221,41 @@ Portfolio summary only counts rows where `status = 'holding'`.
 - Save → `PUT /api/settings`; revert button reloads from server
 
 ---
+
+## Historical Analysis System
+
+### Database table
+```sql
+CREATE TABLE historical_prices (
+    date           TEXT PRIMARY KEY,   -- YYYY-MM-DD gregorian
+    usd_toman      REAL,               -- USD close in Toman (Rial ÷ 10)
+    gold_18k_toman REAL,               -- 18k gold close in Toman/gram (Rial ÷ 10)
+    source         TEXT DEFAULT 'tgju'
+);
+```
+
+### Data sources (tgju.org)
+- Dollar: `price_dollar_rl` — 3,840 records, 2011-11-26 → present
+- Gold 18k: `geram18` — 3,392 records, 2013-07-22 → present
+- Merged overlapping range: ~3,200 rows from 2013-07-22
+- **Column indices**: gold col[0]=close, dollar col[3]=close, both col[6]=gregorian date
+- Prices in Rial — divide by 10 to store as Toman
+- Date format from API: `"2013/07/22"` → store as `"2013-07-22"`
+- Pagination: `?start=0&length=500&order_dir=asc&convert_to_ad=1` (loop until start >= recordsTotal)
+
+### Correlation method
+1. Per-Shamsi-year OLS linear regression on USD/Toman → `baseline[date]`
+2. `dollar_dev = (usd_toman - baseline) / baseline × 100`
+3. Five buckets: `< -10%`, `-10 to -5%`, `-5 to +5%`, `+5 to +10%`, `> +10%`
+4. For each bucket/day t, measure gold return at t+7, t+30, t+60, t+90 calendar days
+5. Pearson r between dollar_dev and gold_return_30d
+6. Analysis result cached 1 hour in `market_cache` key `"correlation_analysis"`
+
+### New API routes
+- `GET /history` — history.html page
+- `POST /api/history/fetch` — trigger bulk tgju import (~30–60s, ~16 API calls)
+- `GET /api/history/status` — count/date-range of stored records
+- `GET /api/analysis/correlation` — run/cache correlation analysis
 
 ## Known Architectural Decisions
 

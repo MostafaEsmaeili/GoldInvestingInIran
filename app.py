@@ -3,6 +3,8 @@ import database
 import fetcher
 import strategy
 import settings as _settings
+import history
+import analysis
 
 app = Flask(__name__)
 
@@ -127,6 +129,40 @@ def api_settings_put():
                 pass
     _settings.save(current)
     return jsonify({"success": True, "settings": current})
+
+
+@app.route("/history")
+def history_page():
+    resp = app.make_response(render_template("history.html"))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
+@app.route("/api/history/fetch", methods=["POST"])
+def api_history_fetch():
+    try:
+        stats = history.fetch_and_store_all()
+        return jsonify({"success": True, **stats})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/history/status")
+def api_history_status():
+    status = database.get_historical_status()
+    return jsonify(status)
+
+
+@app.route("/api/analysis/correlation")
+def api_analysis_correlation():
+    cached = database.cache_get("correlation_analysis", max_age_seconds=3600)
+    if cached:
+        return jsonify(cached)
+    result = analysis.run_correlation()
+    if "error" not in result:
+        database.cache_set("correlation_analysis", result)
+    return jsonify(result)
 
 
 if __name__ == "__main__":

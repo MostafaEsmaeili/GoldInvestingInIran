@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تحلیل تاریخی — سیستم معاملاتی طلا</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #21262d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --gold: #f0b429;
+    --gold-dim: #7d5a00;
+    --green: #00e676;
+    --red: #ff1744;
+    --orange: #ff6d00;
+    --yellow: #ffd740;
+    --accent: #58a6ff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  header h1 { font-size: 18px; color: var(--accent); font-weight: 700; }
+  header h1 span { color: var(--muted); font-size: 13px; font-weight: 400; margin-right: 10px; }
+
+  .nav-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--muted); text-decoration: none; font-size: 13px;
+    padding: 6px 12px; border-radius: 7px; border: 1px solid var(--border);
+    transition: color .2s, border-color .2s;
+  }
+  .nav-link:hover { color: var(--gold); border-color: var(--gold-dim); }
+
+  .page { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .card-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .7px; color: var(--muted);
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-body { padding: 20px; }
+
+  /* Status row */
+  .status-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    margin-bottom: 4px;
+  }
+  .stat { text-align: center; }
+  .stat-val { font-size: 22px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* Fetch button */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 20px; border-radius: 8px; border: none;
+    cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit;
+    transition: opacity .2s, transform .1s;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn:hover { opacity: .85; }
+  .btn-accent { background: var(--accent); color: #000; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
+    border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Lead-lag table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    padding: 10px 14px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .5px; color: var(--muted);
+    border-bottom: 1px solid var(--border); text-align: center; white-space: nowrap;
+  }
+  thead th:first-child { text-align: right; }
+  tbody td {
+    padding: 11px 14px; border-bottom: 1px solid var(--border);
+    text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  tbody td:first-child { text-align: right; font-size: 13px; }
+  tbody tr:hover { background: rgba(255,255,255,.03); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .cell-pos  { color: var(--green);  font-weight: 700; }
+  .cell-neg  { color: var(--red);    font-weight: 700; }
+  .cell-neutral { color: var(--muted); }
+
+  /* Insight card */
+  .insight-box {
+    background: rgba(88,166,255,.07);
+    border: 1px solid rgba(88,166,255,.25);
+    border-radius: 10px; padding: 18px 22px;
+    font-size: 15px; line-height: 1.8; color: var(--text);
+  }
+  .insight-box .i-icon { font-size: 22px; margin-left: 10px; }
+
+  /* Pearson badge */
+  .pearson-badge {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 20px; margin-top: 14px;
+  }
+  .pearson-r { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .pearson-label { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  /* Chart */
+  .chart-wrap { position: relative; height: 280px; }
+
+  /* Bucket label chips */
+  .bucket-label { font-size: 12px; }
+  .bucket-chip {
+    display: inline-block; padding: 2px 8px; border-radius: 20px;
+    font-size: 10px; font-weight: 600; margin-right: 6px;
+    background: rgba(255,255,255,.08);
+  }
+
+  /* Placeholder */
+  .placeholder { color: var(--muted); text-align: center; padding: 40px; font-size: 14px; }
+
+  #fetch-msg { font-size: 12px; color: var(--muted); margin-top: 10px; min-height: 18px; }
+
+  @media (max-width: 700px) {
+    .status-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📊 تحلیل تاریخی <span>Historical Correlation Analysis</span></h1>
+  <a href="/" class="nav-link">← بازگشت به داشبورد</a>
+</header>
+
+<div class="page">
+
+  <!-- Data status card -->
+  <div class="card">
+    <div class="card-title">
+      <span>وضعیت داده‌های تاریخی</span>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <span id="fetch-msg"></span>
+        <button class="btn btn-accent" id="fetch-btn" onclick="fetchData()">
+          ⬇ بارگذاری / به‌روزرسانی داده‌ها
+        </button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="status-row">
+        <div class="stat">
+          <div class="stat-val" id="st-count">—</div>
+          <div class="stat-lbl">روز داده ترکیبی</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="st-from" style="font-size:15px;">—</div>
+          <div class="stat-lbl">قدیمی‌ترین رکورد</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="st-to" style="font-size:15px;">—</div>
+          <div class="stat-lbl">جدیدترین رکورد</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="st-analyzed">—</div>
+          <div class="stat-lbl">رکورد تحلیل‌شده</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Insight + Pearson -->
+  <div class="card" id="insight-card" style="display:none;">
+    <div class="card-title">نتیجه کلیدی</div>
+    <div class="card-body">
+      <div class="insight-box">
+        <span class="i-icon">🔍</span>
+        <span id="insight-text">—</span>
+      </div>
+      <div class="pearson-badge">
+        <div>
+          <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">ضریب همبستگی پیرسون</div>
+          <div class="pearson-r" id="pearson-r">—</div>
+          <div style="font-size:10px; color:var(--muted); margin-top:2px;">dollar_dev vs بازده ۳۰ روزه طلا</div>
+        </div>
+        <div class="pearson-label" id="pearson-label" style="max-width:300px;">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lead-lag table -->
+  <div class="card" id="table-card" style="display:none;">
+    <div class="card-title">جدول همبستگی تأخیری — افت دلار پس از حباب</div>
+    <div class="card-body">
+      <p style="font-size:12px; color:var(--muted); margin-bottom:16px;">
+        هر ردیف نشان می‌دهد که وقتی دلار در آن بازه انحراف بود،
+        قیمت طلای ۱۸ عیار در روزهای بعدی چه تغییری کرد (میانگین درصد تغییر).
+      </p>
+      <div class="table-wrap">
+        <table id="lead-lag-table">
+          <thead>
+            <tr>
+              <th>وضعیت دلار</th>
+              <th># روز</th>
+              <th>میانگین ۷ روزه</th>
+              <th>میانگین ۳۰ روزه</th>
+              <th>میانگین ۶۰ روزه</th>
+              <th>میانگین ۹۰ روزه</th>
+              <th>احتمال افت ۳۰ روزه</th>
+            </tr>
+          </thead>
+          <tbody id="lead-lag-body">
+            <tr><td colspan="7" class="placeholder"><span class="spinner"></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart -->
+  <div class="card" id="chart-card" style="display:none;">
+    <div class="card-title">نمودار تاریخی — انحراف دلار از روند و قیمت طلا</div>
+    <div class="card-body">
+      <div class="chart-wrap">
+        <canvas id="history-chart"></canvas>
+      </div>
+      <p style="font-size:11px; color:var(--muted); margin-top:10px; text-align:center;">
+        محور چپ: انحراف دلار از روند سالانه (٪) &nbsp;|&nbsp; محور راست: قیمت طلای ۱۸ عیار (تومان/گرم) &nbsp;|&nbsp; نمونه ماهانه
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const fmt    = n => n == null ? '—' : Math.round(n).toLocaleString('fa-IR');
+const fmtPct = (n, sign=true) => {
+  if (n == null) return '—';
+  const s = sign && n > 0 ? '+' : '';
+  return s + n.toLocaleString('fa-IR', {minimumFractionDigits:1, maximumFractionDigits:1}) + '٪';
+};
+
+let _chart = null;
+
+async function loadStatus() {
+  const r = await fetch('/api/history/status');
+  const s = await r.json();
+  document.getElementById('st-count').textContent = s.count ? s.count.toLocaleString('fa-IR') : '—';
+  document.getElementById('st-from').textContent  = s.from  || '—';
+  document.getElementById('st-to').textContent    = s.to    || '—';
+}
+
+async function loadAnalysis() {
+  if (document.getElementById('st-count').textContent === '—' ||
+      document.getElementById('st-count').textContent === '۰') return;
+
+  const r   = await fetch('/api/analysis/correlation');
+  const d   = await r.json();
+
+  if (d.error) {
+    document.getElementById('fetch-msg').textContent = d.error;
+    return;
+  }
+
+  document.getElementById('st-analyzed').textContent = d.records_analyzed.toLocaleString('fa-IR');
+
+  // Insight
+  document.getElementById('insight-card').style.display = '';
+  document.getElementById('insight-text').textContent   = d.key_insight_fa;
+
+  const r30 = d.pearson_r_30d;
+  const rEl = document.getElementById('pearson-r');
+  rEl.textContent  = r30 != null ? r30.toFixed(3) : '—';
+  rEl.style.color  = r30 == null ? 'var(--muted)' : r30 < -0.3 ? 'var(--red)' : r30 > 0.3 ? 'var(--green)' : 'var(--yellow)';
+
+  let label = '—';
+  if (r30 != null) {
+    if (r30 < -0.4)      label = 'همبستگی منفی قوی — حباب دلار معمولاً با افت طلا همراه است';
+    else if (r30 < -0.2) label = 'همبستگی منفی متوسط — حباب دلار با کاهش نسبی طلا همراه است';
+    else if (r30 > 0.4)  label = 'همبستگی مثبت قوی — دلار و طلا با هم رشد می‌کنند';
+    else if (r30 > 0.2)  label = 'همبستگی مثبت متوسط';
+    else                 label = 'همبستگی ضعیف — رابطه مشخصی در بازه ۳۰ روزه وجود ندارد';
+  }
+  document.getElementById('pearson-label').textContent = label;
+
+  // Lead-lag table
+  document.getElementById('table-card').style.display = '';
+  const tbody = document.getElementById('lead-lag-body');
+  tbody.innerHTML = '';
+  for (const row of d.lead_lag) {
+    const tr = document.createElement('tr');
+
+    const bucketClass =
+      row.bucket === '> +10%'     ? 'color:#ff8c00; font-weight:700' :
+      row.bucket === '+5 to +10%' ? 'color:var(--orange)' :
+      row.bucket === '< -10%'     ? 'color:var(--green)' :
+      row.bucket === '-10 to -5%' ? 'color:#69f0ae' : 'color:var(--muted)';
+
+    const cells = [
+      `<td style="${bucketClass}">${row.label_fa}</td>`,
+      `<td>${row.count.toLocaleString('fa-IR')}</td>`,
+      `<td class="${cls(row.avg_gold_7d)}">${fmtPct(row.avg_gold_7d)}</td>`,
+      `<td class="${cls(row.avg_gold_30d)}">${fmtPct(row.avg_gold_30d)}</td>`,
+      `<td class="${cls(row.avg_gold_60d)}">${fmtPct(row.avg_gold_60d)}</td>`,
+      `<td class="${cls(row.avg_gold_90d)}">${fmtPct(row.avg_gold_90d)}</td>`,
+      `<td>${row.pct_gold_fell_30d != null ? row.pct_gold_fell_30d.toLocaleString('fa-IR') + '٪' : '—'}</td>`,
+    ];
+    tr.innerHTML = cells.join('');
+    tbody.appendChild(tr);
+  }
+
+  // Chart
+  document.getElementById('chart-card').style.display = '';
+  renderChart(d.chart_data);
+}
+
+function cls(v) {
+  if (v == null) return 'cell-neutral';
+  return v > 0 ? 'cell-pos' : v < 0 ? 'cell-neg' : 'cell-neutral';
+}
+
+function renderChart(data) {
+  const labels     = data.map(d => d.date);
+  const devData    = data.map(d => d.dollar_dev);
+  const goldData   = data.map(d => d.gold_toman);
+
+  if (_chart) { _chart.destroy(); _chart = null; }
+
+  const ctx = document.getElementById('history-chart').getContext('2d');
+  _chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'انحراف دلار (٪)',
+          data: devData,
+          borderColor: '#ff8c00',
+          backgroundColor: 'rgba(255,140,0,.08)',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.3,
+          yAxisID: 'yDev',
+          fill: true,
+        },
+        {
+          label: 'طلای ۱۸ عیار (تومان/گرم)',
+          data: goldData,
+          borderColor: '#f0b429',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.3,
+          yAxisID: 'yGold',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: '#8b949e', font: { family: 'Segoe UI, Tahoma' } },
+        },
+        tooltip: {
+          rtl: true,
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              if (ctx.datasetIndex === 0) return ` انحراف دلار: ${v >= 0 ? '+' : ''}${v.toFixed(1)}٪`;
+              return ` طلا: ${Math.round(v).toLocaleString('fa-IR')} تومان`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#8b949e',
+            maxTicksLimit: 12,
+            font: { size: 11 },
+            callback: (_, i, ticks) => {
+              if (i === 0 || i === ticks.length - 1 || i % Math.floor(ticks.length / 8) === 0)
+                return labels[i]?.slice(0, 7) ?? '';
+              return '';
+            },
+          },
+          grid: { color: '#21262d' },
+        },
+        yDev: {
+          position: 'right',
+          title: { display: true, text: 'انحراف دلار ٪', color: '#ff8c00', font: { size: 11 } },
+          ticks: { color: '#ff8c00', font: { size: 11 }, callback: v => v.toFixed(0) + '٪' },
+          grid: { color: '#21262d' },
+          border: { dash: [4, 4] },
+        },
+        yGold: {
+          position: 'left',
+          title: { display: true, text: 'تومان/گرم', color: '#f0b429', font: { size: 11 } },
+          ticks: {
+            color: '#f0b429', font: { size: 11 },
+            callback: v => (v / 1000000).toFixed(1) + 'M',
+          },
+          grid: { display: false },
+        },
+      },
+    },
+  });
+}
+
+async function fetchData() {
+  const btn = document.getElementById('fetch-btn');
+  const msg = document.getElementById('fetch-msg');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> در حال بارگذاری...';
+  msg.textContent = 'دریافت داده از tgju.org — ممکن است ۳۰–۶۰ ثانیه طول بکشد...';
+
+  try {
+    const r = await fetch('/api/history/fetch', { method: 'POST' });
+    const d = await r.json();
+    if (d.success) {
+      const newLabel = d.incremental
+        ? `${d.new_rows.toLocaleString('fa-IR')} روز جدید`
+        : `${d.new_rows.toLocaleString('fa-IR')} روز (بارگذاری اولیه)`;
+      msg.textContent =
+        `✓ ${newLabel} — مجموع: ${d.total_stored.toLocaleString('fa-IR')} روز` +
+        ` (${d.date_range.from} تا ${d.date_range.to})` +
+        ` — ${d.elapsed_seconds}s`;
+      // Bust analysis cache and reload
+      await fetch('/api/analysis/correlation', { cache: 'no-store' });
+      await loadStatus();
+      await loadAnalysis();
+    } else {
+      msg.textContent = '✗ خطا: ' + (d.error || 'نامشخص');
+    }
+  } catch(e) {
+    msg.textContent = '✗ خطای شبکه: ' + e.message;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '⬇ بارگذاری / به‌روزرسانی داده‌ها';
+}
+
+// Init
+(async () => {
+  await loadStatus();
+  await loadAnalysis();
+})();
+</script>
+</body>
+</html>

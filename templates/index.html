@@ -294,11 +294,43 @@
 
   .placeholder { color: var(--muted); font-size: 13px; text-align: center; padding: 24px; }
 
+  /* ── Historical guide card ── */
+  .hist-guide {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 18px;
+    display: none;
+  }
+  .hist-guide.visible { display: block; }
+  .hist-guide-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .hist-guide-title { font-size: 12px; color: var(--muted); font-weight: 700;
+    text-transform: uppercase; letter-spacing: .6px; }
+  .hist-bucket-label { font-size: 13px; font-weight: 600; }
+  .hist-horizons {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    margin-bottom: 12px;
+  }
+  .hist-hz {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; text-align: center;
+  }
+  .hist-hz-label { font-size: 10px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .4px; }
+  .hist-hz-val { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .hist-hz-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .hist-footer { font-size: 11px; color: var(--muted); line-height: 1.7; }
+  .hist-footer strong { color: var(--text); }
+
   @media (max-width: 900px) {
     .kpi-row { grid-template-columns: repeat(2, 1fr); }
     .analysis-row { grid-template-columns: 1fr; }
     .portfolio-row { grid-template-columns: repeat(2, 1fr); }
     .scenarios-grid { grid-template-columns: 1fr; }
+    .hist-horizons { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
 </head>
@@ -311,6 +343,7 @@
   <div style="text-align:left; display:flex; align-items:center; gap:14px;">
     <span id="last-updated" style="font-size:11px; color:var(--muted);">در حال بارگذاری...</span>
     <span id="status-dot"></span>
+    <a href="/history" style="display:inline-flex;align-items:center;gap:5px;color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:7px;border:1px solid var(--border);transition:color .2s,border-color .2s;" onmouseover="this.style.color='var(--accent)';this.style.borderColor='#1f4080'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">📊 تحلیل تاریخی</a>
     <a href="/settings" style="display:inline-flex;align-items:center;gap:5px;color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:7px;border:1px solid var(--border);transition:color .2s,border-color .2s;" onmouseover="this.style.color='var(--gold)';this.style.borderColor='#7d5a00'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">⚙️ تنظیمات</a>
   </div>
 </header>
@@ -448,6 +481,37 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- Historical Guide Card -->
+  <div class="hist-guide" id="hist-guide">
+    <div class="hist-guide-header">
+      <span class="hist-guide-title">📚 راهنمای تاریخی — در موقعیت‌های مشابه چه اتفاقی افتاد؟</span>
+      <span class="hist-bucket-label" id="hist-bucket-label"></span>
+    </div>
+    <div class="hist-horizons">
+      <div class="hist-hz">
+        <div class="hist-hz-label">۷ روز بعد</div>
+        <div class="hist-hz-val" id="hh-7d">—</div>
+        <div class="hist-hz-sub">میانگین تغییر طلا</div>
+      </div>
+      <div class="hist-hz">
+        <div class="hist-hz-label">۳۰ روز بعد</div>
+        <div class="hist-hz-val" id="hh-30d">—</div>
+        <div class="hist-hz-sub">میانگین تغییر طلا</div>
+      </div>
+      <div class="hist-hz">
+        <div class="hist-hz-label">۶۰ روز بعد</div>
+        <div class="hist-hz-val" id="hh-60d">—</div>
+        <div class="hist-hz-sub">میانگین تغییر طلا</div>
+      </div>
+      <div class="hist-hz">
+        <div class="hist-hz-label">۹۰ روز بعد</div>
+        <div class="hist-hz-val" id="hh-90d">—</div>
+        <div class="hist-hz-sub">میانگین تغییر طلا</div>
+      </div>
+    </div>
+    <div class="hist-footer" id="hist-footer"></div>
   </div>
 
   <!-- Scenarios Row -->
@@ -805,6 +869,9 @@
       // Signal
       applySignal(d);
 
+      // Historical guide (needs correlation data loaded separately)
+      renderHistGuide(d.dollar_deviation_pct);
+
       // Scenarios
       renderScenarios(d.scenarios);
       const hasgoldTarget = d.scenarios && d.scenarios[0] && d.scenarios[0].gold_target_eoy_usd;
@@ -904,10 +971,83 @@
     }
   }
 
+  // ── Historical guide ───────────────────────────────────────────────────────
+  let _corrData = null;
+
+  function _findBucket(dollarDev, leadLag) {
+    if (dollarDev >= 10)  return leadLag.find(b => b.bucket === '> +10%');
+    if (dollarDev >= 5)   return leadLag.find(b => b.bucket === '+5 to +10%');
+    if (dollarDev >= -5)  return leadLag.find(b => b.bucket === '-5 to +5%');
+    if (dollarDev >= -10) return leadLag.find(b => b.bucket === '-10 to -5%');
+    return leadLag.find(b => b.bucket === '< -10%');
+  }
+
+  function _pctColor(v) {
+    if (v == null) return 'var(--muted)';
+    return v > 0.5 ? 'var(--green)' : v < -0.5 ? 'var(--red)' : 'var(--yellow)';
+  }
+
+  function _fmtPct(v) {
+    if (v == null) return '—';
+    return (v >= 0 ? '+' : '') + v.toLocaleString('fa-IR', {minimumFractionDigits:1, maximumFractionDigits:1}) + '٪';
+  }
+
+  function renderHistGuide(dollarDev) {
+    if (!_corrData || !_corrData.lead_lag) return;
+    const bucket = _findBucket(dollarDev, _corrData.lead_lag);
+    if (!bucket || bucket.count < 5) return;
+
+    const guide = document.getElementById('hist-guide');
+    guide.classList.add('visible');
+
+    const bucketColor =
+      bucket.bucket === '> +10%'     ? '#ff8c00' :
+      bucket.bucket === '+5 to +10%' ? 'var(--orange)' :
+      bucket.bucket === '< -10%'     ? 'var(--green)' :
+      bucket.bucket === '-10 to -5%' ? '#69f0ae' : 'var(--muted)';
+
+    document.getElementById('hist-bucket-label').textContent = bucket.label_fa;
+    document.getElementById('hist-bucket-label').style.color = bucketColor;
+
+    const horizons = [
+      { id: 'hh-7d',  val: bucket.avg_gold_7d  },
+      { id: 'hh-30d', val: bucket.avg_gold_30d },
+      { id: 'hh-60d', val: bucket.avg_gold_60d },
+      { id: 'hh-90d', val: bucket.avg_gold_90d },
+    ];
+    horizons.forEach(({ id, val }) => {
+      const el = document.getElementById(id);
+      el.textContent  = _fmtPct(val);
+      el.style.color  = _pctColor(val);
+    });
+
+    const pf = bucket.pct_gold_fell_30d;
+    const years = _corrData.date_range
+      ? Math.round((new Date(_corrData.date_range.to) - new Date(_corrData.date_range.from)) / (365.25*24*3600*1000))
+      : '?';
+    document.getElementById('hist-footer').innerHTML =
+      `بر اساس <strong>${bucket.count.toLocaleString('fa-IR')} رویداد مشابه</strong> در ${years} سال گذشته` +
+      (pf != null ? ` — در <strong>${pf.toLocaleString('fa-IR')}٪</strong> موارد، طلا در ۳۰ روز بعد کاهش یافت` : '') +
+      ` &nbsp;|&nbsp; <a href="/history" style="color:var(--accent); text-decoration:none;">مشاهده تحلیل کامل ←</a>`;
+  }
+
+  async function loadCorrelation() {
+    try {
+      const res = await fetch('/api/analysis/correlation');
+      if (!res.ok) return;
+      const d = await res.json();
+      if (d.error || !d.lead_lag) return;
+      _corrData = d;
+      if (_market) renderHistGuide(_market.dollar_deviation_pct);
+    } catch (_) { /* silently skip if no data */ }
+  }
+
   // ── Init & polling ─────────────────────────────────────────────────────────
   loadMarket();
   loadTrades();
+  loadCorrelation();
   setInterval(loadMarket, 5 * 60 * 1000); // refresh every 5 min
+  setInterval(loadCorrelation, 60 * 60 * 1000); // refresh correlation hourly
 </script>
 </body>
 </html>
