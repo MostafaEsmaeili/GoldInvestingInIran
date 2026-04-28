@@ -1,24 +1,83 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[codz]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
 .Python
-*.egg-info/
-dist/
 build/
-.venv/
-venv/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py.cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Flask stuff
+instance/
+.webassets-cache
+
+# Environments
+.env
+.envrc
+.venv
 env/
+venv/
+ENV/
 
-# Data — SQLite DB (personal trade history) and local settings
-data/gold_trades.db
-data/settings.json
-
-# IDE
+# IDEs
 .vscode/
 .idea/
+.spyderproject
+.spyproject
+.ropeproject
+
+# mypy / pyright
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
 
 # OS
 .DS_Store
 Thumbs.db
+
+# ── Project-specific ──────────────────────────────────────────────────────────
+# SQLite database (contains personal trade history — never commit)
+data/gold_trades.db
+
+# Runtime settings (user-configured values — each deployment has its own)
+data/settings.json
