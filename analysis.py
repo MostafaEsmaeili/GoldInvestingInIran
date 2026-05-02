@@ -2,8 +2,12 @@
 Correlation analysis engine — dollar deviation vs subsequent gold price changes.
 
 Method:
-  1. Build a per-Shamsi-year OLS linear regression on USD/Toman to derive
-     the "expected" (baseline) dollar for each historical date.
+  1. Build a per-Shamsi-year inflation-anchored baseline for USD/Toman.
+     Each year's baseline starts from the actual market value on Farvardin 1
+     (back-calculated from the earliest available data point of that year)
+     and grows at the official annual inflation rate for that year.
+     Formula: baseline(d) = year_start × (1 + d × inflation/100/365.25)
+     where d = days elapsed since Farvardin 1.
   2. Compute dollar_dev = (actual - baseline) / baseline × 100 for every day.
   3. Bucket days by dollar_dev level.
   4. For each bucket, measure average 18k gold return over the following
@@ -17,6 +21,29 @@ from datetime import date, datetime, timedelta
 
 import jdatetime
 import database
+
+# Official annual CPI inflation rates (%) by Shamsi year.
+# Source: Central Bank of Iran / Statistical Centre of Iran.
+_SHAMSI_INFLATION: dict[int, float] = {
+    1389: 12.4,
+    1390: 21.5,
+    1391: 30.5,
+    1392: 34.7,
+    1393: 15.6,
+    1394: 11.9,
+    1395:  9.0,
+    1396:  9.6,
+    1397: 31.2,
+    1398: 41.2,
+    1399: 47.1,
+    1400: 46.2,
+    1401: 53.1,
+    1402: 47.4,
+    1403: 35.8,
+    1404: 48.3,
+}
+
+_DAYS_PER_YEAR = 365.25
 
 
 # ── Shamsi calendar helpers ────────────────────────────────────────────────────
@@ -32,11 +59,18 @@ def _day_of_shamsi_year(date_str: str) -> int:
     return (jd - jdatetime.date(jd.year, 1, 1)).days + 1
 
 
-# ── Baseline dollar via per-year OLS ──────────────────────────────────────────
+# ── Baseline dollar via official inflation rates ───────────────────────────────
 
 def _build_baselines(rows: list[dict]) -> dict[str, float]:
     """
-    Per-Shamsi-year linear regression on USD/Toman.
+    Per-Shamsi-year inflation-anchored baseline for USD/Toman.
+
+    For each year with a known inflation rate:
+      - Find the earliest data point in that year.
+      - Back-calculate year_start (Farvardin 1 value) using the inflation rate.
+      - baseline(date) = year_start × (1 + days_since_farvardin1 × rate)
+
+    Falls back to OLS regression for years without a known inflation rate.
     Returns {date_str: expected_baseline_toman}.
     """
     by_year: dict[int, list] = {}
@@ -45,19 +79,35 @@ def _build_baselines(rows: list[dict]) -> dict[str, float]:
             by_year.setdefault(_shamsi_year(r["date"]), []).append(r)
 
     baselines: dict[str, float] = {}
-    for yr_rows in by_year.values():
-        if len(yr_rows) < 2:
+
+    for yr, yr_rows in by_year.items():
+        inflation = _SHAMSI_INFLATION.get(yr)
+
+        if inflation is None:
+            # Fallback: OLS for unknown years
+            if len(yr_rows) < 2:
+                for r in yr_rows:
+                    baselines[r["date"]] = r["usd_toman"]
+                continue
+            xs  = [float(_day_of_shamsi_year(r["date"])) for r in yr_rows]
+            ys  = [r["usd_toman"] for r in yr_rows]
+            reg = statistics.linear_regression(xs, ys)
             for r in yr_rows:
-                baselines[r["date"]] = r["usd_toman"]
+                x = float(_day_of_shamsi_year(r["date"]))
+                baselines[r["date"]] = reg.intercept + reg.slope * x
             continue
 
-        xs = [float(_day_of_shamsi_year(r["date"])) for r in yr_rows]
-        ys = [r["usd_toman"] for r in yr_rows]
-        reg = statistics.linear_regression(xs, ys)
+        # Inflation-based baseline anchored to actual Farvardin-1 value.
+        # Use the earliest known data point to back-calculate year_start.
+        sorted_rows = sorted(yr_rows, key=lambda r: r["date"])
+        first       = sorted_rows[0]
+        first_d     = _day_of_shamsi_year(first["date"]) - 1   # days since Farvardin 1
+        daily_rate  = inflation / 100.0 / _DAYS_PER_YEAR
+        year_start  = first["usd_toman"] / (1.0 + first_d * daily_rate)
 
-        for r in yr_rows:
-            x = float(_day_of_shamsi_year(r["date"]))
-            baselines[r["date"]] = reg.intercept + reg.slope * x
+        for r in sorted_rows:
+            d = _day_of_shamsi_year(r["date"]) - 1
+            baselines[r["date"]] = year_start * (1.0 + d * daily_rate)
 
     return baselines
 
@@ -184,21 +234,28 @@ def run_correlation() -> dict:
     ]
 
     # ── Key insight in Persian ─────────────────────────────────────────────────
-    bubble = next((b for b in lead_lag if b["bucket"] == "> +10%"), None)
+    bubble     = next((b for b in lead_lag if b["bucket"] == "> +10%"), None)
+    deflated   = next((b for b in lead_lag if b["bucket"] == "< -10%"), None)
     if bubble and bubble["count"] >= 10 and bubble["avg_gold_30d"] is not None:
+        pf        = bubble["pct_gold_fell_30d"] or 0
         direction = "کاهش" if bubble["avg_gold_30d"] < 0 else "افزایش"
-        pf = bubble["pct_gold_fell_30d"] or 0
+        # Extra note: compare bubble vs deflated return to show relative impact
+        extra = ""
+        if deflated and deflated["avg_gold_30d"] is not None:
+            diff = bubble["avg_gold_30d"] - deflated["avg_gold_30d"]
+            diff_dir = "بیشتر" if diff > 0 else "کمتر"
+            extra = f" این {abs(diff):.1f}٪ {diff_dir} از دوره‌های کاهش دلار است."
         insight = (
-            f"در {bubble['count']} روزی که دلار بیش از ۱۰٪ بالاتر از روند خود بود، "
+            f"در {bubble['count']} روزی که دلار بیش از ۱۰٪ بالاتر از پایه تورمی خود بود، "
             f"قیمت طلای ۱۸ عیار در ۳۰ روز بعد به‌طور میانگین "
             f"{abs(bubble['avg_gold_30d']):.1f}٪ {direction} یافت "
-            f"({pf:.0f}٪ موارد افت داشتند)."
+            f"({pf:.0f}٪ موارد افت داشتند).{extra}"
         )
     elif pearson_r is not None:
         direction = "منفی" if pearson_r < 0 else "مثبت"
         strength  = "قوی" if abs(pearson_r) > 0.4 else ("متوسط" if abs(pearson_r) > 0.2 else "ضعیف")
         insight = (
-            f"همبستگی {direction} {strength} میان انحراف دلار از روند و بازده ۳۰ روزه طلا: "
+            f"همبستگی {direction} {strength} میان انحراف دلار از پایه تورمی و بازده ۳۰ روزه طلا: "
             f"r = {pearson_r}"
         )
     else:

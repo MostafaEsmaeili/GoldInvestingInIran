@@ -64,6 +64,11 @@ def cache_set(key: str, value):
         )
 
 
+def cache_delete(key: str):
+    with _conn() as db:
+        db.execute("DELETE FROM market_cache WHERE key = ?", (key,))
+
+
 def cache_get(key: str, max_age_seconds: int = 300):
     with _conn() as db:
         row = db.execute(

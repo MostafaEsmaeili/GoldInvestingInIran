@@ -244,12 +244,29 @@ CREATE TABLE historical_prices (
 - Pagination: `?start=0&length=500&order_dir=asc&convert_to_ad=1` (loop until start >= recordsTotal)
 
 ### Correlation method
-1. Per-Shamsi-year OLS linear regression on USD/Toman → `baseline[date]`
+1. Per-Shamsi-year **inflation-anchored** baseline for USD/Toman:
+   - For each year, find the earliest available data point and back-calculate `year_start` (Farvardin-1 value)
+     using `year_start = first_usd / (1 + days_elapsed × inflation/100/365.25)`
+   - `baseline(date) = year_start × (1 + days_since_farvardin1 × inflation/100/365.25)`
+   - Falls back to OLS for years not in the table below
 2. `dollar_dev = (usd_toman - baseline) / baseline × 100`
 3. Five buckets: `< -10%`, `-10 to -5%`, `-5 to +5%`, `+5 to +10%`, `> +10%`
 4. For each bucket/day t, measure gold return at t+7, t+30, t+60, t+90 calendar days
 5. Pearson r between dollar_dev and gold_return_30d
 6. Analysis result cached 1 hour in `market_cache` key `"correlation_analysis"`
+   — cache is **invalidated** automatically after every `/api/history/fetch`
+
+### Official annual inflation rates used in historical baseline (`analysis._SHAMSI_INFLATION`)
+| Shamsi | Inflation% | | Shamsi | Inflation% |
+|--------|------------|---|--------|------------|
+| 1389   | 12.4       | | 1397   | 31.2       |
+| 1390   | 21.5       | | 1398   | 41.2       |
+| 1391   | 30.5       | | 1399   | 47.1       |
+| 1392   | 34.7       | | 1400   | 46.2       |
+| 1393   | 15.6       | | 1401   | 53.1       |
+| 1394   | 11.9       | | 1402   | 47.4       |
+| 1395   |  9.0       | | 1403   | 35.8       |
+| 1396   |  9.6       | | 1404   | 48.3       |
 
 ### New API routes
 - `GET /history` — history.html page

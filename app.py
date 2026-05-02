@@ -143,6 +143,7 @@ def history_page():
 def api_history_fetch():
     try:
         stats = history.fetch_and_store_all()
+        database.cache_delete("correlation_analysis")   # force recompute with new data
         return jsonify({"success": True, **stats})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
